@@ -16,6 +16,11 @@ def apply_theme():
         [data-testid="stHeader"]{
           background: rgba(0,0,0,0);
         }
+        .update-row{
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
         .main .block-container{
           background: rgba(255,255,255,0.92);
           border-radius: 16px;
@@ -395,11 +400,74 @@ def render_hot_trends():
 
     ts = st.session_state.get("hot_ts")
     if ts:
-        st.caption(f"上次更新时间：{ts.strftime('%Y-%m-%d %H:%M:%S')}")
+        if "uv_counted" not in st.session_state:
+            try:
+                requests.get("https://count.getloli.com/get/@china_hot_trends_uv?theme=asoul", timeout=2)
+            except Exception:
+                pass
+            st.session_state["uv_counted"] = True
+        st.markdown(
+            f"""
+            <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 15px; padding: 10px 0;">
+              <span style="color: #666; font-size: 14px;">上次更新时间：{ts.strftime('%Y-%m-%d %H:%M:%S')}</span>
+              <div style="display: flex; align-items: center; gap: 5px;">
+                <span style="font-size: 12px; color: #333; font-weight: 600;">累计浏览量：</span>
+                <img src="https://count.getloli.com/get/@china_hot_trends_pv?theme=asoul" style="height: 45px; background: rgba(255,255,255,0.85); box-shadow: 0 0 0 3px rgba(255,255,255,0.6), 0 0 12px rgba(255,255,255,0.85); border-radius: 6px; padding: 2px 4px;">
+              </div>
+              <span style="color: #ccc;">|</span>
+              <div style="display: flex; align-items: center; gap: 5px;">
+                <span style="font-size: 12px; color: #333; font-weight: 600;">累计访客量：</span>
+                <img src="https://count.getloli.com/get/@china_hot_trends_uv?theme=asoul" style="height: 45px; background: rgba(255,255,255,0.85); box-shadow: 0 0 0 3px rgba(255,255,255,0.6), 0 0 12px rgba(255,255,255,0.85); border-radius: 6px; padding: 2px 4px;">
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
     display_cols = [c for c in ["排名", "词条", "简介", "热度", "链接"] if c in df_cached.columns]
     st.dataframe(df_cached[display_cols].head(topn), width="stretch", hide_index=True)
+
+def render_author_badge():
+    st.markdown(
+        """
+        <div class="author-badge">
+          作者：Unlimited Box&nbsp;&nbsp;|&nbsp;&nbsp;邮箱：<a href="mailto:a18577y@gmail.com">a18577y@gmail.com</a>
+        </div>
+        <style>
+        .author-badge{
+          position: fixed;
+          right: 16px;
+          bottom: 16px;
+          background: rgba(26,26,26,0.75);
+          color: #fff;
+          padding: 8px 12px;
+          border-radius: 12px;
+          font-size: 13px;
+          z-index: 9999;
+          box-shadow: 0 6px 18px rgba(0,0,0,0.18);
+          backdrop-filter: blur(4px);
+        }
+        .author-badge a{
+          color: #ffd7a1;
+          text-decoration: none;
+        }
+        .author-badge a:hover{
+          text-decoration: underline;
+        }
+        @media (max-width: 640px){
+          .author-badge{
+            right: 8px;
+            bottom: 8px;
+            font-size: 12px;
+            padding: 6px 10px;
+          }
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
 st.title("中国热搜")
 apply_theme()
 render_sidebar()
 render_hot_trends()
+render_author_badge()
