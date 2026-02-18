@@ -3,6 +3,7 @@ import streamlit as st
 import pandas as pd
 import requests
 from typing import Optional, Tuple
+import streamlit.components.v1 as components
 
 st.set_page_config(page_title="中国热搜", layout="wide", initial_sidebar_state="collapsed")
 
@@ -400,31 +401,17 @@ def render_hot_trends():
 
     ts = st.session_state.get("hot_ts")
     if ts:
-        if "uv_counted" not in st.session_state:
-            try:
-                requests.get("https://count.getloli.com/get/@china_hot_trends_uv?theme=asoul", timeout=2)
-            except Exception:
-                pass
-            st.session_state["uv_counted"] = True
         st.markdown(
             f"""
             <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 15px; padding: 10px 0;">
               <span style="color: #666; font-size: 14px;">上次更新时间：{ts.strftime('%Y-%m-%d %H:%M:%S')}</span>
-              <div style="display: flex; align-items: center; gap: 5px;">
-                <span style="font-size: 12px; color: #333; font-weight: 600;">累计浏览量：</span>
-                <img src="https://count.getloli.com/get/@china_hot_trends_pv?theme=asoul" style="height: 45px; background: rgba(255,255,255,0.85); box-shadow: 0 0 0 3px rgba(255,255,255,0.6), 0 0 12px rgba(255,255,255,0.85); border-radius: 6px; padding: 2px 4px;">
-              </div>
-              <span style="color: #ccc;">|</span>
-              <div style="display: flex; align-items: center; gap: 5px;">
-                <span style="font-size: 12px; color: #333; font-weight: 600;">累计访客量：</span>
-                <img src="https://count.getloli.com/get/@china_hot_trends_uv?theme=asoul" style="height: 45px; background: rgba(255,255,255,0.85); box-shadow: 0 0 0 3px rgba(255,255,255,0.6), 0 0 12px rgba(255,255,255,0.85); border-radius: 6px; padding: 2px 4px;">
-              </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
     display_cols = [c for c in ["排名", "词条", "简介", "热度", "链接"] if c in df_cached.columns]
     st.dataframe(df_cached[display_cols].head(topn), width="stretch", hide_index=True)
+    render_counter()
 
 def render_author_badge():
     st.markdown(
@@ -435,7 +422,7 @@ def render_author_badge():
         <style>
         .author-badge{
           position: fixed;
-          right: 16px;
+          left: 16px;
           bottom: 16px;
           background: rgba(26,26,26,0.75);
           color: #fff;
@@ -455,7 +442,7 @@ def render_author_badge():
         }
         @media (max-width: 640px){
           .author-badge{
-            right: 8px;
+            left: 8px;
             bottom: 8px;
             font-size: 12px;
             padding: 6px 10px;
@@ -464,6 +451,23 @@ def render_author_badge():
         </style>
         """,
         unsafe_allow_html=True,
+    )
+
+def render_counter():
+    components.html(
+        """
+        <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+        <div style="color: #555; font-family: sans-serif; font-size: 14px; text-align: center;">
+            <span id="busuanzi_container_site_pv" style="display:none">
+                总浏览量: <span id="busuanzi_value_site_pv" style="font-weight:bold; color:#ff4d4f;"></span> 次
+            </span>
+            <span style="margin: 0 10px; color: #ccc;">|</span>
+            <span id="busuanzi_container_site_uv" style="display:none">
+                独立访客: <span id="busuanzi_value_site_uv" style="font-weight:bold; color:#ff4d4f;"></span> 人
+            </span>
+        </div>
+        """,
+        height=50,
     )
 
 st.title("中国热搜")
