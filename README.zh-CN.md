@@ -39,7 +39,7 @@
 - 🔄 **获取最新数据**：一键刷新当前榜单
 - ⚡ **首屏秒开**：优先使用缓存或示例数据，避免空白等待
 - 🧰 **侧边栏设置**：代理、忽略 SSL 校验、连接测试、一键诊断/连接、示例数据切换
-- 🎨 **UI 风格**：红橙渐变主题、侧栏折叠、表格样式优化与中文化菜单
+- 🎨 **UI 风格**：暗夜火焰主题 —— 玻璃质感卡片、火焰渐变点缀、TOP3 奖牌徽章、热度条、LIVE 脉冲光效、全局圆角胶囊组件与中文化菜单
 
 ## 🧠 工作原理
 
@@ -54,7 +54,7 @@ flowchart LR
 1. **抓取**：通过 `fetch_baidu_board(tab)` 拉取 top.baidu.com 对应榜单并解析为表格数据
 2. **回退**：优先使用缓存或示例数据渲染，保证首屏秒开；网络可用时点击「获取最新数据」刷新为实时数据
 3. **网络设置**：侧边栏支持启用代理（http/https/socks5h）、忽略 SSL 证书验证、测试连接与一键诊断/连接
-4. **展示**：Streamlit 渲染榜单表格，支持总榜 / 小说 / 电影 / 电视剧切换与中文化菜单
+4. **展示**：Streamlit 以动画卡片渲染榜单（奖牌徽章 + 热度条），支持总榜 / 小说 / 电影 / 电视剧切换与中文化菜单
 
 ## 📖 使用指南
 
@@ -74,7 +74,7 @@ baiduhotsearch/
 ├── logo.svg             # 项目 Logo
 ├── docs/
 │   └── index.html       # GitHub Pages 跳转页（重定向到 Streamlit Cloud）
-└── .streamlit/          # Streamlit 本地配置
+└── .streamlit/          # Streamlit 配置（config.toml 暗色主题）
 ```
 
 ## 🚀 快速开始
@@ -148,8 +148,8 @@ streamlit run app.py
 
 ## 🛠️ 自定义与二开
 
-- 配色与样式：`app.py` 中的 `apply_theme()` 注入了 CSS/JS，可按需修改颜色、阴影、圆角等。
-- 列展示：默认显示「排名/词条/简介/热度/链接」，可在 `render_hot_trends()` 中调整 `display_cols`。
+- 配色与样式：`app.py` 中的 `apply_theme()` 注入了 CSS/JS，可按需修改 `--fire1/--fire2` 主题色变量、阴影、圆角等；原生控件配色跟随 `.streamlit/config.toml`。
+- 卡片内容：排名 / 词条 / 简介 / 热度由 `render_hot_cards()` 渲染，可按需增删展示字段（如简介行）。
 - 榜单类型：通过 `fetch_baidu_board(tab)` 拉取。当前支持映射为「总榜、小说、电影、电视剧」，可在 `board_map` 增加更多候选。
 
 ## ❓ 常见问题

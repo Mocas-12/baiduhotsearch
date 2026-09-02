@@ -39,7 +39,7 @@
 - 🔄 **Fetch latest data**: one-click refresh of the current board
 - ⚡ **Instant first paint**: cached or sample data is shown first to avoid a blank wait
 - 🧰 **Sidebar settings**: proxy, ignore SSL verification, connection test, one-click diagnose/connect, sample-data toggle
-- 🎨 **UI style**: red-orange gradient theme, collapsible sidebar, polished table styles and localized menus
+- 🎨 **UI style**: dark "ember" theme — glassy cards, fire-gradient accents, TOP-3 medal badges, heat bars, LIVE pulse, rounded pill components and localized menus
 
 ## 🧠 How It Works
 
@@ -54,7 +54,7 @@ flowchart LR
 1. **Fetch**: `fetch_baidu_board(tab)` pulls the selected board from top.baidu.com and parses it into table data
 2. **Fallback**: cached or sample data is rendered first to keep the first paint instant; click "Fetch Latest Data" to switch to real-time data when the network is available
 3. **Network settings**: the sidebar supports a proxy (http/https/socks5h), ignoring SSL certificate verification, connection tests, and one-click diagnose/connect
-4. **Display**: Streamlit renders the ranking table with Overall / Novels / Movies / TV Series switching and localized menus
+4. **Display**: Streamlit renders the ranking as animated cards (medal badges + heat bars) with Overall / Novels / Movies / TV Series switching and localized menus
 
 ## 📖 Usage Guide
 
@@ -74,7 +74,7 @@ baiduhotsearch/
 ├── logo.svg             # Project logo
 ├── docs/
 │   └── index.html       # GitHub Pages redirect page (forwards to Streamlit Cloud)
-└── .streamlit/          # Streamlit local configuration
+└── .streamlit/          # Streamlit config (config.toml dark theme)
 ```
 
 ## 🚀 Quick Start
@@ -148,8 +148,8 @@ streamlit run app.py
 
 ## 🛠️ Customization
 
-- Colors & styles: `apply_theme()` in `app.py` injects CSS/JS; modify colors, shadows, radii, etc. as needed.
-- Displayed columns: defaults to「排名/词条/简介/热度/链接」(rank / title / summary / heat / link); adjust `display_cols` in `render_hot_trends()`.
+- Colors & styles: `apply_theme()` in `app.py` injects CSS/JS — tweak the `--fire1/--fire2` accent variables, shadows, radii, etc.; native widget colors follow `.streamlit/config.toml`.
+- Card layout: rank / title / summary / heat are rendered by `render_hot_cards()`; tweak it to show or hide fields (e.g. the summary line).
 - Board types: fetched via `fetch_baidu_board(tab)`. Currently mapped to Overall / Novels / Movies / TV Series; add more candidates in `board_map`.
 
 ## ❓ FAQ
