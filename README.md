@@ -1,48 +1,64 @@
-# China Hot Search (Baidu) — User Guide
+<div align="center">
+
+<img src="./logo.svg" width="96" alt="Baidu Hot Search Logo" />
+
+# 🔥 Baidu Hot Search (中国热搜)
+
+**A real-time Baidu hot-search dashboard built with Streamlit — Overall · Novels · Movies · TV Series, one-click refresh**
+
+[![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org)
+[![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io)
+[![Live](https://img.shields.io/badge/Streamlit_Cloud-Live-FF4B4B?logo=streamlit&logoColor=white)](https://baiduhotsearch-d9ysnhxbkzeskrnd5apnn5.streamlit.app/)
+
+**[🌐 Live Dashboard (Streamlit Cloud)](https://baiduhotsearch-d9ysnhxbkzeskrnd5apnn5.streamlit.app/)**
 
 **English** | [简体中文](./README.zh-CN.md)
 
-This app is a lightweight Streamlit web frontend that displays Baidu hot-search rankings in real time, with board switching (Overall, Novels, Movies, TV Series), one-click refresh of the latest data, sidebar network settings, and sample-data fallback.
+*Open the page → view the live hot search → switch boards → refresh with one click*
 
-## Features
+</div>
 
-- Real-time hot search: pulls the live ranking from top.baidu.com and displays it
-- Board switching: Overall / Novels / Movies / TV Series
-- Fetch latest data: one-click refresh of the current board
-- Instant first paint: cached or sample data is shown first to avoid a blank wait
-- Sidebar settings: proxy, ignore SSL verification, connection test, one-click diagnose/connect, sample-data toggle
-- UI style: red-orange gradient theme, collapsible sidebar, polished table styles and localized menus
+---
 
-## Requirements
+## 📖 Table of Contents
 
-- Python 3.9+ (3.10/3.11 recommended)
+- [Features](#-features)
+- [How It Works](#-how-it-works)
+- [Usage Guide](#-usage-guide)
+- [Project Structure](#-project-structure)
+- [Quick Start](#-quick-start)
+- [Publishing Online](#-publishing-online)
+- [Customization](#-customization)
+- [FAQ](#-faq)
+- [License](#-license)
 
-## Installation & Running
+## ✨ Features
 
-1. Clone the project
+- 🔥 **Real-time hot search**: pulls the live ranking from top.baidu.com and displays it
+- 🗂️ **Board switching**: Overall / Novels / Movies / TV Series
+- 🔄 **Fetch latest data**: one-click refresh of the current board
+- ⚡ **Instant first paint**: cached or sample data is shown first to avoid a blank wait
+- 🧰 **Sidebar settings**: proxy, ignore SSL verification, connection test, one-click diagnose/connect, sample-data toggle
+- 🎨 **UI style**: red-orange gradient theme, collapsible sidebar, polished table styles and localized menus
 
-   ```bash
-   git clone <your-repo-url>
-   cd googletrend
-   ```
+## 🧠 How It Works
 
-2. Install dependencies
+```mermaid
+flowchart LR
+    A[🌐 top.baidu.com<br/>live rankings] --> B[📥 Fetch & parse<br/>requests · pandas]
+    B --> C[💾 Cache / sample-data fallback<br/>instant first paint]
+    C --> D[📊 Streamlit rendering<br/>board switching · one-click refresh]
+    D --> E[⚙️ Sidebar network settings<br/>proxy · SSL · diagnostics]
+```
 
-   ```bash
-   pip install -U streamlit pandas requests
-   ```
+1. **Fetch**: `fetch_baidu_board(tab)` pulls the selected board from top.baidu.com and parses it into table data
+2. **Fallback**: cached or sample data is rendered first to keep the first paint instant; click "Fetch Latest Data" to switch to real-time data when the network is available
+3. **Network settings**: the sidebar supports a proxy (http/https/socks5h), ignoring SSL certificate verification, connection tests, and one-click diagnose/connect
+4. **Display**: Streamlit renders the ranking table with Overall / Novels / Movies / TV Series switching and localized menus
 
-3. Start the app
+## 📖 Usage Guide
 
-   ```bash
-   streamlit run app.py
-   ```
-
-   The terminal prints the visit URL (e.g. http://localhost:8501); open it in a browser.
-
-## Usage Guide
-
-- The top of the page shows the current board. The "Fetch Latest Data" (获取最新数据) button on the right refreshes it immediately.
+- The top of the page shows the current board. The "Fetch Latest Data" button on the right refreshes it immediately.
 - Use the board switcher at the top right (Overall / Novels / Movies / TV Series) to view different boards.
 - The left sidebar (collapsed by default, click to expand) provides:
   - Enable proxy and fill in a proxy address (http/https/socks5h supported)
@@ -50,15 +66,34 @@ This app is a lightweight Streamlit web frontend that displays Baidu hot-search 
   - Test connection / one-click diagnose / one-click connect (tries to auto-pick a working proxy)
   - Use sample data (view the UI even when the network is unavailable)
 
-## FAQ
+## 📁 Project Structure
 
-- The first open sometimes needs the network to fetch fresh data. To keep the first screen fast, the app prefers cached or sample data; click "Fetch Latest Data" to switch to real-time data.
-- If the connection fails:
-  - Check your network; if a proxy is needed, enable it in the sidebar and fill in the address (e.g. `http://127.0.0.1:7890`).
-  - Try checking "Ignore SSL certificate verification".
-  - Use "one-click diagnose / one-click connect" to quickly locate a working connection mode.
+```text
+baiduhotsearch/
+├── app.py               # Streamlit main app: board fetching / rendering / sidebar settings / theme injection
+├── logo.svg             # Project logo
+├── docs/
+│   └── index.html       # GitHub Pages redirect page (forwards to Streamlit Cloud)
+└── .streamlit/          # Streamlit local configuration
+```
 
-## Publishing Online
+## 🚀 Quick Start
+
+```bash
+git clone https://github.com/Mocas-12/baiduhotsearch.git
+cd baiduhotsearch
+pip install -U streamlit pandas requests
+streamlit run app.py
+```
+
+> The terminal prints the visit URL (e.g. http://localhost:8501); open it in a browser. Requirements: Python 3.9+ (3.10/3.11 recommended).
+
+| Command | Description |
+| --- | --- |
+| `pip install -U streamlit pandas requests` | Install dependencies |
+| `streamlit run app.py` | Start the app |
+
+## 🌐 Publishing Online
 
 > Note: GitHub Pages only serves static sites and cannot run Python/Streamlit. The recommended approach is "app deployment + Pages presentation".
 
@@ -111,12 +146,38 @@ This app is a lightweight Streamlit web frontend that displays Baidu hot-search 
 
 2. Once you have a publicly accessible URL, configure the GitHub Pages redirect/embed as described above.
 
-## Customization
+## 🛠️ Customization
 
 - Colors & styles: `apply_theme()` in `app.py` injects CSS/JS; modify colors, shadows, radii, etc. as needed.
-- Displayed columns: defaults to 排名/词条/简介/热度/链接 (rank / title / summary / heat / link); adjust `display_cols` in `render_hot_trends()`.
+- Displayed columns: defaults to「排名/词条/简介/热度/链接」(rank / title / summary / heat / link); adjust `display_cols` in `render_hot_trends()`.
 - Board types: fetched via `fetch_baidu_board(tab)`. Currently mapped to Overall / Novels / Movies / TV Series; add more candidates in `board_map`.
 
-## License
+## ❓ FAQ
+
+<details>
+<summary><b>Does the first open show real-time data?</b></summary>
+
+- To keep the first screen fast, the app prefers cached or sample data; click "Fetch Latest Data" to switch to real-time data
+</details>
+
+<details>
+<summary><b>What if the connection fails?</b></summary>
+
+- Check your network; if a proxy is needed, enable it in the sidebar and fill in the address (e.g. `http://127.0.0.1:7890`)
+- Try checking "Ignore SSL certificate verification"
+- Use "one-click diagnose / one-click connect" to quickly locate a working connection mode
+</details>
+
+## 📄 License
 
 - Free for personal/internal use. For public deployments, follow the data source site's usage rules and scraping limits; avoid high-frequency requests.
+
+---
+
+<div align="center">
+
+**Made with 💙**
+
+🌐 [Live Dashboard](https://baiduhotsearch-d9ysnhxbkzeskrnd5apnn5.streamlit.app/) · 🐛 [Report an Issue](https://github.com/Mocas-12/baiduhotsearch/issues)
+
+</div>
