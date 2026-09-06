@@ -148,7 +148,7 @@ streamlit run app.py
 
 ## 🛠️ 自定义与二开
 
-- 配色与样式：`app.py` 中的 `apply_theme()` 注入了 CSS/JS，可按需修改 `--fire1/--fire2` 主题色变量、阴影、圆角等；原生控件配色跟随 `.streamlit/config.toml`。
+- 配色与样式：`app.py` 中的 `apply_theme()` 注入了 CSS/JS，可按需修改阴影、圆角等；原生控件配色跟随 `.streamlit/config.toml`。
 - 卡片内容：排名 / 词条 / 简介 / 热度由 `render_hot_cards()` 渲染，可按需增删展示字段（如简介行）。
 - 榜单类型：通过 `fetch_baidu_board(tab)` 拉取。当前支持映射为「总榜、小说、电影、电视剧」，可在 `board_map` 增加更多候选。
 

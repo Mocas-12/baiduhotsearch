@@ -148,7 +148,7 @@ streamlit run app.py
 
 ## 🛠️ Customization
 
-- Colors & styles: `apply_theme()` in `app.py` injects CSS/JS — tweak the `--fire1/--fire2` accent variables, shadows, radii, etc.; native widget colors follow `.streamlit/config.toml`.
+- Colors & styles: `apply_theme()` in `app.py` injects CSS/JS — tweak shadows, radii, etc.; native widget colors follow `.streamlit/config.toml`.
 - Card layout: rank / title / summary / heat are rendered by `render_hot_cards()`; tweak it to show or hide fields (e.g. the summary line).
 - Board types: fetched via `fetch_baidu_board(tab)`. Currently mapped to Overall / Novels / Movies / TV Series; add more candidates in `board_map`.
 

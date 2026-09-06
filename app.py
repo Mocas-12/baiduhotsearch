@@ -13,13 +13,10 @@ def apply_theme():
         """
         <style>
         :root{
-          --bg: #0d0f16;
           --panel: rgba(255,255,255,0.045);
           --border: rgba(255,255,255,0.08);
           --txt: #f2f4f9;
           --sub: #8f96ab;
-          --fire1: #ff512f;
-          --fire2: #ff9a3c;
         }
         html, body, .stApp, [data-testid="stAppViewContainer"]{
           font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
@@ -392,16 +389,19 @@ def render_sidebar():
         if env_proxy:
             st.session_state["proxy_enabled"] = True
             st.session_state["proxy_url"] = env_proxy
+    st.session_state.setdefault("proxy_enabled", bool(env_proxy))
+    st.session_state.setdefault("proxy_url", env_proxy)
+    st.session_state.setdefault("use_sample", False)
     with st.sidebar:
         st.header("设置")
-        st.checkbox("启用代理", key="proxy_enabled", value=st.session_state.get("proxy_enabled", bool(env_proxy)))
-        st.text_input("HTTPS代理（示例：https://1.2.3.4:8080）", key="proxy_url", value=st.session_state.get("proxy_url", env_proxy))
+        st.checkbox("启用代理", key="proxy_enabled")
+        st.text_input("HTTPS代理（示例：https://1.2.3.4:8080）", key="proxy_url")
         st.checkbox("忽略SSL证书验证（部分拦截代理需开启）", key="insecure_ssl", value=False)
         cols = st.columns(2)
         with cols[0]:
             test = st.button("测试连接")
         with cols[1]:
-            st.checkbox("使用示例数据", key="use_sample", value=st.session_state.get("use_sample", False))
+            st.checkbox("使用示例数据", key="use_sample")
         cols2 = st.columns(2)
         with cols2[0]:
             diag = st.button("一键诊断")
@@ -503,22 +503,14 @@ def fetch_baidu_board(tab: str = "realtime"):
     cards = data.get("data", {}).get("cards", [])
     items = []
     for card in cards:
-        # 置顶
-        for it in card.get("topContent", []) or []:
-            items.append({
-                "词条": it.get("word") or it.get("name") or it.get("title"),
-                "简介": it.get("desc") or it.get("brief") or "",
-                "热度": it.get("hotScore") or it.get("heat") or "",
-                "链接": it.get("url") or it.get("link") or "",
-            })
-        # 普通
-        for it in card.get("content", []) or []:
-            items.append({
-                "词条": it.get("word") or it.get("name") or it.get("title"),
-                "简介": it.get("desc") or it.get("brief") or "",
-                "热度": it.get("hotScore") or it.get("heat") or "",
-                "链接": it.get("url") or it.get("link") or "",
-            })
+        for key in ("topContent", "content"):
+            for it in card.get(key) or []:
+                items.append({
+                    "词条": it.get("word") or it.get("name") or it.get("title"),
+                    "简介": it.get("desc") or it.get("brief") or "",
+                    "热度": it.get("hotScore") or it.get("heat") or "",
+                    "链接": it.get("url") or it.get("link") or "",
+                })
     df = pd.DataFrame(items)
     if not df.empty:
         df.insert(0, "排名", range(1, len(df) + 1))
@@ -563,7 +555,7 @@ def render_hot_cards(df, topn):
         word = str(row.get("词条") or "未知词条")
         desc = str(row.get("简介") or "").strip()
         link = str(row.get("链接") or "").strip()
-        hv = heat_vals.iloc[i] if i < len(heat_vals) else float("nan")
+        hv = heat_vals.iloc[i]
         hv = 0.0 if pd.isna(hv) else float(hv)
         pct = int(max(4, min(100, round(hv / max_heat * 100))))
         delay = min(i, 25)
@@ -603,6 +595,15 @@ def render_meta_chips(df, board_label):
     chips.append(f'<span class="meta-chip">🏷️ {html.escape(str(board_label))}</span>')
     st.markdown('<div class="meta-row">' + "".join(chips) + "</div>", unsafe_allow_html=True)
 
+def _sample_df(topn):
+    return pd.DataFrame({
+        "排名": list(range(1, topn + 1)),
+        "词条": [f"示例热词{i+1}" for i in range(topn)],
+        "简介": ["" for _ in range(topn)],
+        "热度": [int(1e6 - i * 1000) for i in range(topn)],
+        "链接": ["" for _ in range(topn)],
+    })
+
 def render_hot_trends():
     cols = st.columns([1.1, 1.4, 1.2])
     with cols[0]:
@@ -624,28 +625,20 @@ def render_hot_trends():
     if "hot_df" not in st.session_state:
         st.session_state["hot_df"] = None
         st.session_state["hot_ts"] = None
-        st.session_state["hot_tab"] = None
         st.session_state["hot_key"] = None
 
     if st.session_state.get("use_sample") and st.session_state.get("hot_df") is None and not refresh:
-        sample = pd.DataFrame({
-            "排名": list(range(1, topn + 1)),
-            "词条": [f"示例热词{i+1}" for i in range(topn)],
-            "简介": ["" for _ in range(topn)],
-            "热度": [int(1e6 - i * 1000) for i in range(topn)],
-            "链接": ["" for _ in range(topn)],
-        })
+        sample = _sample_df(topn)
         st.info("当前显示示例数据；点击“获取最新数据”可拉取实时数据")
         render_hot_cards(sample, topn)
         return
 
     if refresh:
         try:
-            df_new, ok_tab = fetch_baidu_board_with_fallback(candidates)
+            df_new, _ = fetch_baidu_board_with_fallback(candidates)
             if not df_new.empty:
                 st.session_state["hot_df"] = df_new
                 st.session_state["hot_ts"] = pd.Timestamp.now()
-                st.session_state["hot_tab"] = ok_tab
                 st.session_state["hot_key"] = board_label
                 st.success("已更新为最新数据")
         except Exception:
@@ -655,19 +648,12 @@ def render_hot_trends():
     # 如果切换了榜单且没有对应缓存，则拉取
     if df_cached is None or st.session_state.get("hot_key") != board_label:
         try:
-            df_cached, ok_tab = fetch_baidu_board_with_fallback(candidates)
+            df_cached, _ = fetch_baidu_board_with_fallback(candidates)
             st.session_state["hot_df"] = df_cached
             st.session_state["hot_ts"] = pd.Timestamp.now()
-            st.session_state["hot_tab"] = ok_tab
             st.session_state["hot_key"] = board_label
         except Exception:
-            sample = pd.DataFrame({
-                "排名": list(range(1, topn + 1)),
-                "词条": [f"示例热词{i+1}" for i in range(topn)],
-                "简介": ["" for _ in range(topn)],
-                "热度": [int(1e6 - i * 1000) for i in range(topn)],
-                "链接": ["" for _ in range(topn)],
-            })
+            sample = _sample_df(topn)
             st.warning("实时数据暂不可用，已显示示例数据")
             render_hot_cards(sample, topn)
             return

@@ -1,0 +1,7 @@
+__pycache__/
+*.py[cod]
+.streamlit/secrets.toml
+.streamlit/machine_id_v4
+.env
+.DS_Store
+Thumbs.db
