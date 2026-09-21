@@ -196,12 +196,13 @@ def _word_desc_html(item: dict):
     return word_html, desc_html
 
 
-def render_meta_chips(results: dict, keys: list, view_label: str, n_items: int, n_sources: int):
+def render_meta_chips(results: dict, keys: list, view_label: str, n_items: int, n_sources: int,
+                      item_label: str = "已收录"):
     chips = []
     tss = [r["ts"] for k, r in results.items() if k in keys and r.get("ok")]
     if tss:
         chips.append(f'<span class="meta-chip">🕒 更新于 <b>{datetime.fromtimestamp(max(tss)).strftime("%H:%M:%S")}</b></span>')
-    chips.append(f'<span class="meta-chip">📊 已收录 <b>{n_items}</b> 条</span>')
+    chips.append(f'<span class="meta-chip">📊 {item_label} <b>{n_items}</b></span>')
     chips.append(f'<span class="meta-chip">🛰 <b>{n_sources}</b> 个数据源</span>')
     chips.append(f'<span class="meta-chip">🏷 {html.escape(view_label)}</span>')
     st.markdown('<div class="meta-row">' + "".join(chips) + "</div>", unsafe_allow_html=True)
@@ -290,7 +291,7 @@ def render_cross(topn: int, force: bool):
     clusters = st.session_state.get("cross_clusters") or []
 
     ok_sources = len([k for k, r in results.items() if r.get("ok") and r.get("items")])
-    render_meta_chips(results, keys, "全网交叉榜", len(clusters), ok_sources)
+    render_meta_chips(results, keys, "全网交叉榜", len(clusters), ok_sources, item_label="⚡ 交叉话题")
 
     if not clusters:
         down = [sources.SOURCES[k]["name"] for k in keys
