@@ -25,7 +25,7 @@ from styles import apply_theme
 st.set_page_config(page_title="全网热搜雷达", layout="wide", initial_sidebar_state="collapsed")
 
 CACHE_TTL = 900   # 成功结果缓存 15 分钟
-FAIL_TTL = 300    # 失败/示例结果只缓存 5 分钟，避免重跑时反复冲击已限流的接口
+FAIL_TTL = 120    # 失败/降级/示例结果短缓存：避免重跑时反复冲击已限流的接口，同时保证 2 分钟内自动重试
 VIEW_LABELS = ["🌐 交叉榜", "🇨🇳 国内", "🌍 国际", "💻 科技"]
 VIEW_KEYS = {"🌐 交叉榜": "cross", "🇨🇳 国内": "domestic", "🌍 国际": "world", "💻 科技": "tech"}
 KEY_LABELS = {v: k for k, v in VIEW_KEYS.items()}
@@ -61,7 +61,10 @@ def _pill(color: str, label: str) -> str:
 # ---------------------------------------------------------------- 数据获取（每源缓存 + 失败降级）
 
 def _fetch_one(key: str, cfg: dict, use_sample: bool, cached: Optional[dict]) -> dict:
-    """纯函数（不访问 session_state，可安全跑在线程池里）：抓单源并附带历史标记。"""
+    """纯函数（不访问 session_state，可安全跑在线程池里）：抓单源并附带历史标记。
+
+    降级链：实时抓取 → 本会话旧缓存 → SQLite 最近快照（≤24h）→ 示例数据 → 失败。
+    """
     try:
         items = sources.SOURCES[key]["fetch"](cfg)
         if not items:
@@ -78,19 +81,34 @@ def _fetch_one(key: str, cfg: dict, use_sample: bool, cached: Optional[dict]) ->
         if cached and cached.get("items"):
             return {"ok": True, "items": cached["items"], "stale": True,
                     "ts": cached["ts"], "error": str(e)}
+        try:  # SQLite 兜底：库里有 ≤24h 内的快照就展示，交叉榜不因个别源限流而残缺
+            snap_ts, snap_items = store.last_snapshot(key)
+            if snap_items:
+                for it in snap_items:
+                    it["_first_seen"] = snap_ts
+                return {"ok": True, "items": snap_items, "stale": True,
+                        "ts": snap_ts.timestamp(), "error": str(e)}
+        except Exception:
+            pass
         if use_sample:
             return {"ok": False, "items": sources.sample_items(key),
                     "sample": True, "ts": time.time(), "error": str(e)}
         return {"ok": False, "items": [], "ts": time.time(), "error": str(e)}
 
 
+def _cache_kind(res: dict) -> str:
+    if res.get("sample"):
+        return "sample"
+    if res.get("stale"):
+        return "stale"
+    return "ok" if res.get("ok") and res.get("items") else "fail"
+
+
 def get_sources(keys: list, force: bool = False) -> dict:
     """批量获取，返回 {source_key: result}。
 
-    成功结果按 CACHE_TTL 缓存；失败/示例结果按 FAIL_TTL 短缓存，
-    否则每次重跑都会重新冲击已经限流的数据源，形成恶性循环。
-    抓取失败但存在旧成功缓存时（stale），保留旧缓存不刷新时间戳，
-    下个周期会自动重试。
+    缓存分四类：ok 按 CACHE_TTL；stale/fail/sample 按 FAIL_TTL 短缓存——
+    既不反复冲击限流接口，又保证 2 分钟后自动重试。force=True 时全部重抓。
     """
     cache_all = st.session_state.setdefault("data_cache", {})
     results = {}
@@ -98,18 +116,19 @@ def get_sources(keys: list, force: bool = False) -> dict:
     now = time.time()
     for k in keys:
         c = cache_all.get(k)
-        if c and not force:
+        if c and not force and now - c["ts"] < (CACHE_TTL if c.get("kind") == "ok" else FAIL_TTL):
             kind = c.get("kind", "ok")
-            if now - c["ts"] < (CACHE_TTL if kind == "ok" else FAIL_TTL):
-                res = {"ok": kind == "ok", "items": c.get("items", []), "stale": False, "ts": c["ts"]}
-                if kind == "sample":
-                    res["sample"] = True
-                results[k] = res
-                continue
+            res = {"ok": kind in ("ok", "stale"), "items": c.get("items", []),
+                   "stale": kind == "stale", "ts": c["ts"]}
+            if kind == "sample":
+                res["sample"] = True
+                res["ok"] = False
+            results[k] = res
+            continue
         todo.append(k)
     if todo:
         cfg, use_sample = _cfg(), st.session_state.get("use_sample", False)
-        with ThreadPoolExecutor(max_workers=6) as ex:
+        with ThreadPoolExecutor(max_workers=4) as ex:  # 4 并发 + 60s API 错峰，控制对公共实例的瞬时压力
             futs = {ex.submit(_fetch_one, k, cfg, use_sample, cache_all.get(k)): k for k in todo}
             for fut in as_completed(futs):
                 k = futs[fut]
@@ -118,10 +137,8 @@ def get_sources(keys: list, force: bool = False) -> dict:
                 except Exception as e:
                     res = {"ok": False, "items": [], "ts": time.time(), "error": str(e)}
                 results[k] = res
-                if not res.get("stale"):  # stale 时保留旧缓存条目，维持原时间戳以便重试
-                    kind = "ok" if res["ok"] and not res.get("sample") else (
-                        "sample" if res.get("sample") else "fail")
-                    cache_all[k] = {"ts": res["ts"], "items": res["items"], "kind": kind}
+                cache_all[k] = {"ts": res["ts"], "items": res.get("items") or [],
+                                "kind": _cache_kind(res)}
     return results
 
 
@@ -276,7 +293,15 @@ def render_cross(topn: int, force: bool):
     render_meta_chips(results, keys, "全网交叉榜", len(clusters), ok_sources)
 
     if not clusters:
-        st.info("暂时没有发现跨源同热的焦点事件（各榜单可能还没对齐，稍后再试试）")
+        down = [sources.SOURCES[k]["name"] for k in keys
+                if not (results.get(k, {}).get("ok") and results.get(k, {}).get("items"))]
+        if down:
+            st.warning(
+                f"暂时没有交叉话题：当前有 {len(down)} 个源不可用（{'、'.join(down)}），"
+                f"命中源越少，能配对的交叉话题就越少。可点击「获取最新数据」重试；"
+                f"若公共实例持续限流，可在侧边栏填入自部署 60s API 实例地址。")
+        else:
+            st.info("暂时没有发现跨源同热的焦点事件（各榜单可能还没对齐，稍后再试试）")
         return
 
     st.caption(f"以下 {min(len(clusters), topn)} 个话题正被 ≥{aggregate.MIN_CLUSTER} 个数据源同时关注，按命中源数量与热度排序")
@@ -492,4 +517,5 @@ def main():
     render_counter()
 
 
-main()
+if __name__ == "__main__":
+    main()

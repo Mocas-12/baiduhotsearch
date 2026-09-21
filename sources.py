@@ -38,7 +38,7 @@ def _sixty_get(cfg: dict, endpoint: str, timeout: int = 12):
     bases = ([cfg["sixty_base"]] if cfg.get("sixty_base") else []) + SIXTY_BASES
     last_err = None
     # 应用并行抓多个源时会同时打到同一实例，错峰 + 429 退避，避免触发限流
-    time.sleep(random.uniform(0.2, 0.9))
+    time.sleep(random.uniform(0.3, 1.5))
     for base in dict.fromkeys(bases):  # 去重且保持顺序
         for attempt in (1, 2):
             try:

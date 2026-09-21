@@ -87,3 +87,32 @@ def history_hours(source: str, title: str):
     if ts is None:
         return None
     return max(0.0, (datetime.now() - ts).total_seconds() / 3600)
+
+
+def last_snapshot(source: str, max_age_hours: float = 24):
+    """某源最近一次成功快照，返回 (快照时间, items)；无记录或超龄返回 (None, [])。
+
+    用途：实时抓取失败（限流/网络）时，用库内最近一份完整数据兜底展示，
+    避免交叉榜因个别源失效而只剩零星配对。快照未存 desc 字段，兜底卡片无简介。
+    """
+    cutoff = (datetime.now() - timedelta(hours=max_age_hours)).isoformat(timespec="seconds")
+    conn = _conn()
+    try:
+        row = conn.execute(
+            "SELECT ts FROM snapshots WHERE source=? AND ts>=? ORDER BY ts DESC LIMIT 1",
+            (source, cutoff)).fetchone()
+        if not row:
+            return None, []
+        rows = conn.execute(
+            "SELECT title, url, heat, rank FROM snapshots WHERE source=? AND ts=?",
+            (source, row[0])).fetchall()
+        items = [{"rank": rank or (i + 1), "title": title, "url": url or "",
+                  "desc": "", "heat": heat}
+                 for i, (title, url, heat, rank) in enumerate(rows)]
+        items.sort(key=lambda it: it["rank"])
+        try:
+            return datetime.fromisoformat(row[0]), items
+        except ValueError:
+            return None, []
+    finally:
+        conn.close()
