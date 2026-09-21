@@ -233,7 +233,11 @@ def render_category(view_key: str, sub: str, topn: int, force: bool):
     _warn_states(results, keys)
 
     if sub == "全部":  # 多源按名次轮播交错，形成「混合热流」
-        lists = [results[k]["items"] for k in keys if results.get(k, {}).get("ok")]
+        ok_keys = [k for k in keys if results.get(k, {}).get("ok")]
+        lists = [results[k]["items"] for k in ok_keys]
+        # 各平台热度口径不同，混合流里热度条按各自榜单内的相对位置归一
+        src_max = {k: max((it.get("heat") or 0 for it in lst), default=0)
+                   for k, lst in zip(ok_keys, lists)}
         interleaved = []
         for r in range(max((len(l) for l in lists), default=0)):
             for lst in lists:
@@ -251,7 +255,7 @@ def render_category(view_key: str, sub: str, topn: int, force: bool):
         st.info("暂无数据，请点击「获取最新数据」或稍后再试")
         return
 
-    max_heat = max((it.get("heat") or 0 for it in shown), default=0) or 1
+    global_max = max((it.get("heat") or 0 for it in shown), default=0) or 1
     for i, it in enumerate(shown, 1):
         src_key = keys[0] if sub != "全部" else _find_source_key(results, it)
         src_meta = sources.SOURCES.get(src_key) if src_key else None
@@ -259,7 +263,11 @@ def render_category(view_key: str, sub: str, topn: int, force: bool):
         pill_html = f'<div class="pill-row">{pill_html}</div>' if pill_html else ""
         word_html, desc_html = _word_desc_html(it)
         heat = it.get("heat")
-        pct = int(max(4, min(100, round(heat / max_heat * 100)))) if heat else None
+        if heat:
+            ref = (src_max.get(src_key) or 0) if sub == "全部" else global_max
+            pct = int(max(4, min(100, round(heat / ref * 100)))) if ref else None
+        else:
+            pct = None
         _card_shell(i, pill_html, word_html, desc_html, _tag_pills(it), _heat_html(heat, pct))
 
 

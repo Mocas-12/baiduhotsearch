@@ -4,7 +4,7 @@
 
 # 🔥 Hot Search Radar (全网热搜雷达)
 
-**Domestic buzz · World news · Tech trends — 12 live sources aggregated on one page**
+**Domestic buzz · World news · Tech trends — 11 live sources aggregated on one page**
 
 [![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org)
 [![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io)
@@ -42,7 +42,7 @@
 
 ## 🎯 Why
 
-One board shows you one platform's view — and Baidu's skews entertainment. This project aggregates **domestic life trends** (Weibo / Zhihu / Douyin / Toutiao / Baidu / Bilibili), **world news in Chinese** (Google News / NYT Chinese / 60s Daily) and **tech circles** (Hacker News / GitHub Trending / V2EX) onto a single page, then algorithmically clusters topics that **multiple sources are reporting at the same time** — when several independent boards hit the same story, that's the news that actually matters.
+One board shows you one platform's view — and Baidu's skews entertainment. This project aggregates **domestic life trends** (Weibo / Zhihu / Douyin / Toutiao / Baidu / Bilibili), **world news in Chinese** (Google News / NYT Chinese) and **tech circles** (Hacker News / GitHub Trending / V2EX) onto a single page, then algorithmically clusters topics that **multiple sources are reporting at the same time** — when several independent boards hit the same story, that's the news that actually matters.
 
 ## ✨ Features
 
@@ -50,7 +50,7 @@ One board shows you one platform's view — and Baidu's skews entertainment. Thi
 - 🗂️ **Three category views**: 🇨🇳 Domestic / 🌍 World / 💻 Tech — single source, or a "mixed stream" that interleaves all sources by rank
 - 🆕 **New / time-on-board badges**: SQLite snapshots mark first-seen topics and how long an entry has been trending
 - 🛡️ **Three-tier fallback, never blank**: live data → 15-min cached snapshot (with age notice) → sample data
-- 🩺 **Source diagnostics panel**: probes all 12 sources in parallel, reporting availability, item count and latency
+- 🩺 **Source diagnostics panel**: probes all 11 sources in parallel, reporting availability, item count and latency
 - ⚖️ **Rate-limit friendly**: per-source caching, short-lived failure caching, staggered requests and 429 backoff
 - 🎨 **Dark "ember" theme**: glassy cards, fire-gradient accents, TOP-3 medals, heat bars, LIVE pulse, brand-colored source badges
 
@@ -63,7 +63,6 @@ One board shows you one platform's view — and Baidu's skews entertainment. Thi
 | 🇨🇳 Domestic | Zhihu | [60s API](https://github.com/vikiboss/60s) aggregator |
 | 🇨🇳 Domestic | Baidu | Direct top.baidu.com (proxy supported) |
 | 🌍 World | Google News 中文 / NYT Chinese | RSS (stdlib parser, zero deps) |
-| 🌍 World | 60s Daily | 60s API |
 | 💻 Tech | Hacker News | Official Algolia API |
 | 💻 Tech | GitHub Trending | Page parsing |
 | 💻 Tech | V2EX | Official open API |
@@ -74,7 +73,7 @@ One board shows you one platform's view — and Baidu's skews entertainment. Thi
 
 ```mermaid
 flowchart LR
-    A[12 sources<br/>60s API · RSS · open APIs] --> B[Parallel fetch sources.py<br/>unified schema]
+    A[11 sources<br/>60s API · RSS · open APIs] --> B[Parallel fetch sources.py<br/>unified schema]
     B --> C[Per-source cache 15min<br/>fallback snapshot/sample]
     B --> D[SQLite snapshots store.py<br/>new badges · time-on-board]
     B --> E[Title clustering aggregate.py<br/>cross-source board]

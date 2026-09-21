@@ -141,9 +141,10 @@ def _douyin_direct(cfg):
         w = str(it.get("word") or "").strip()
         if not w:
             continue
-        items.append({"rank": len(items) + 1, "title": w,
+        items.append({"rank": int(it.get("position") or len(items) + 1), "title": w,
                       "url": f"https://www.douyin.com/search/{quote(w)}",
                       "desc": "", "heat": _to_heat(it.get("hot_value"))})
+    items.sort(key=lambda x: x["rank"])
     return items
 
 
@@ -202,34 +203,71 @@ def fetch_bilibili(cfg):
     return _chain(_bilibili_direct, lambda c: _norm_items(_sixty_get(c, "bili")))(cfg)
 
 
+def _parse_cn_heat(text):
+    """解析中文热度文案：「2678 万」→ 2.678e7，「1.2亿」→ 1.2e8，纯数字原样；失败 None。"""
+    t = str(text or "")
+    m = re.search(r"([\d.]+)\s*亿", t)
+    if m:
+        return float(m.group(1)) * 1e8
+    m = re.search(r"([\d.]+)\s*万", t)
+    if m:
+        return float(m.group(1)) * 1e4
+    m = re.search(r"([\d.]+)", t)
+    return float(m.group(1)) if m else None
+
+
 def fetch_zhihu(cfg):
-    # 知乎没有数值热度（hot_value_desc 是文案），条目自带的 detail 作为简介
-    return _norm_items(_sixty_get(cfg, "zhihu"))
+    # 知乎数值热度在 hot_value_desc 文案（如「2678 万」）里，detail 作为简介
+    raw = _sixty_get(cfg, "zhihu")
+    items = []
+    for it in raw:
+        title = str(it.get("title") or "").strip()
+        if not title:
+            continue
+        items.append({"rank": len(items) + 1, "title": title,
+                      "url": it.get("link") or "",
+                      "desc": str(it.get("detail") or "").strip(),
+                      "heat": _parse_cn_heat(it.get("hot_value_desc"))})
+    return items
 
 
 # ---------------------------------------------------------------- 百度（直连，保留原有逻辑）
 
 def fetch_baidu(cfg):
+    # 接口里 content=真实排名榜，topContent=平台置顶（不算榜一）。
+    # 置顶条目挪到末尾并标注，否则榜一名次会被置顶新闻顶掉。
     s = build_session(cfg)
     s.headers.update({"Referer": "https://top.baidu.com/",
                       "Accept": "application/json, text/plain, */*"})
     r = s.get("https://top.baidu.com/api/board?platform=pc&tab=realtime", timeout=10)
     r.raise_for_status()
     cards = r.json().get("data", {}).get("cards", [])
-    items = []
+    ranked, pinned, seen = [], [], set()
+
+    def collect(it, bucket):
+        title = str(it.get("word") or it.get("name") or it.get("title") or "").strip()
+        if not title or title in seen:
+            return
+        seen.add(title)
+        bucket.append({
+            "title": title,
+            "url": it.get("url") or it.get("link") or "",
+            "desc": str(it.get("desc") or it.get("brief") or "").strip(),
+            "heat": _to_heat(it.get("hotScore") or it.get("heat")),
+        })
+
     for card in cards:
-        for key in ("topContent", "content"):
-            for it in card.get(key) or []:
-                title = it.get("word") or it.get("name") or it.get("title")
-                if not title:
-                    continue
-                items.append({
-                    "rank": len(items) + 1,
-                    "title": str(title).strip(),
-                    "url": it.get("url") or it.get("link") or "",
-                    "desc": str(it.get("desc") or it.get("brief") or "").strip(),
-                    "heat": _to_heat(it.get("hotScore") or it.get("heat")),
-                })
+        for it in card.get("content") or []:
+            collect(it, ranked)
+    for card in cards:
+        for it in card.get("topContent") or []:
+            collect(it, pinned)
+
+    items = [{"rank": i + 1, **d} for i, d in enumerate(ranked)]
+    for d in pinned:
+        note = "📌 平台置顶（不计入排名）"
+        d["desc"] = f"{d['desc']} {note}".strip()
+        items.append({"rank": len(items) + 1, **d})
     return items
 
 
@@ -282,17 +320,6 @@ def fetch_gnews(cfg):
 
 def fetch_nyt(cfg):
     return _rss_items(cfg, "https://cn.nytimes.com/rss/")
-
-
-def fetch_news60s(cfg):
-    data = _sixty_get(cfg, "60s")
-    news = data.get("news") or []
-    items = []
-    for i, line in enumerate(news):
-        title = re.sub(r"^\s*\d+[.、．]\s*", "", str(line)).strip()
-        if title:
-            items.append({"rank": i + 1, "title": title, "url": "", "desc": "", "heat": None})
-    return items
 
 
 # ---------------------------------------------------------------- 科技
@@ -360,7 +387,6 @@ SOURCES: dict = {
     "bilibili":   {"name": "B站热榜",    "cat": "domestic", "color": "#fb7299", "fetch": fetch_bilibili},
     "gnews":      {"name": "Google News", "cat": "world",   "color": "#4285f4", "fetch": fetch_gnews},
     "nyt":        {"name": "纽约时报中文网", "cat": "world", "color": "#000000", "fetch": fetch_nyt},
-    "news60s":    {"name": "60秒读世界", "cat": "world",    "color": "#0f9d58", "fetch": fetch_news60s},
     "hackernews": {"name": "Hacker News", "cat": "tech",    "color": "#ff6600", "fetch": fetch_hackernews},
     "github":     {"name": "GitHub Trending", "cat": "tech", "color": "#6e5494", "fetch": fetch_github},
     "v2ex":       {"name": "V2EX",       "cat": "tech",     "color": "#1a1a1a", "fetch": fetch_v2ex},
