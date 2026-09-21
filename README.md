@@ -1,10 +1,10 @@
 <div align="center">
 
-<img src="./logo.svg" width="96" alt="Baidu Hot Search Logo" />
+<img src="./logo.svg" width="96" alt="Hot Search Radar Logo" />
 
-# 🔥 Baidu Hot Search (中国热搜)
+# 🔥 Hot Search Radar (全网热搜雷达)
 
-**A real-time Baidu hot-search dashboard built with Streamlit — Overall · Novels · Movies · TV Series, one-click refresh**
+**Domestic buzz · World news · Tech trends — 12 live sources aggregated on one page**
 
 [![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org)
 [![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io)
@@ -12,9 +12,9 @@
 
 **[🌐 Live Dashboard (Streamlit Cloud)](https://baiduhotsearch-d9ysnhxbkzeskrnd5apnn5.streamlit.app/)**
 
-**English** | [简体中文](./README.zh-CN.md)
+[简体中文](./README.zh-CN.md) | **English**
 
-*Open the page → view the live hot search → switch boards → refresh with one click*
+*Formerly "Baidu Hot Search" — a single-board dashboard, now a multi-source trending radar*
 
 </div>
 
@@ -22,162 +22,98 @@
 
 ## 📖 Table of Contents
 
+- [Why](#-why)
 - [Features](#-features)
+- [Data Sources](#-data-sources)
 - [How It Works](#-how-it-works)
-- [Usage Guide](#-usage-guide)
 - [Project Structure](#-project-structure)
 - [Quick Start](#-quick-start)
-- [Publishing Online](#-publishing-online)
-- [Customization](#-customization)
+- [Configuration](#-configuration)
 - [FAQ](#-faq)
 - [License](#-license)
 
+## 🎯 Why
+
+One board shows you one platform's view — and Baidu's skews entertainment. This project aggregates **domestic life trends** (Weibo / Zhihu / Douyin / Toutiao / Baidu / Bilibili), **world news in Chinese** (Google News / NYT Chinese / 60s Daily) and **tech circles** (Hacker News / GitHub Trending / V2EX) onto a single page, then algorithmically clusters topics that **multiple sources are reporting at the same time** — when several independent boards hit the same story, that's the news that actually matters.
+
 ## ✨ Features
 
-- 🔥 **Real-time hot search**: pulls the live ranking from top.baidu.com and displays it
-- 🗂️ **Board switching**: Overall / Novels / Movies / TV Series
-- 🔄 **Fetch latest data**: one-click refresh of the current board
-- ⚡ **Instant first paint**: cached or sample data is shown first to avoid a blank wait
-- 🧰 **Sidebar settings**: proxy, ignore SSL verification, connection test, one-click diagnose/connect, sample-data toggle
-- 🎨 **UI style**: dark "ember" theme — glassy cards, fire-gradient accents, TOP-3 medal badges, heat bars, LIVE pulse, rounded pill components and localized menus
+- 🌐 **Cross-source board (flagship)**: title-similarity clustering merges entries about the same event from ≥2 sources, ranked by hit count and heat — tell "platform noise" from "global news" at a glance
+- 🗂️ **Three category views**: 🇨🇳 Domestic / 🌍 World / 💻 Tech — single source, or a "mixed stream" that interleaves all sources by rank
+- 🆕 **New / time-on-board badges**: SQLite snapshots mark first-seen topics and how long an entry has been trending
+- 🛡️ **Three-tier fallback, never blank**: live data → 15-min cached snapshot (with age notice) → sample data
+- 🩺 **Source diagnostics panel**: probes all 12 sources in parallel, reporting availability, item count and latency
+- ⚖️ **Rate-limit friendly**: per-source caching, short-lived failure caching, staggered requests and 429 backoff
+- 🎨 **Dark "ember" theme**: glassy cards, fire-gradient accents, TOP-3 medals, heat bars, LIVE pulse, brand-colored source badges
+
+## 📡 Data Sources
+
+| Category | Sources | Access |
+|---|---|---|
+| 🇨🇳 Domestic | Weibo / Zhihu / Douyin / Toutiao / Bilibili | [60s API](https://github.com/vikiboss/60s) aggregator (official + community failover) |
+| 🇨🇳 Domestic | Baidu | Direct top.baidu.com (proxy supported) |
+| 🌍 World | Google News 中文 / NYT Chinese | RSS (stdlib parser, zero deps) |
+| 🌍 World | 60s Daily | 60s API |
+| 💻 Tech | Hacker News | Official Algolia API |
+| 💻 Tech | GitHub Trending | Page parsing |
+| 💻 Tech | V2EX | Official open API |
 
 ## 🧠 How It Works
 
 ```mermaid
 flowchart LR
-    A[🌐 top.baidu.com<br/>live rankings] --> B[📥 Fetch & parse<br/>requests · pandas]
-    B --> C[💾 Cache / sample-data fallback<br/>instant first paint]
-    C --> D[📊 Streamlit rendering<br/>board switching · one-click refresh]
-    D --> E[⚙️ Sidebar network settings<br/>proxy · SSL · diagnostics]
+    A[12 sources<br/>60s API · RSS · open APIs] --> B[Parallel fetch sources.py<br/>unified schema]
+    B --> C[Per-source cache 15min<br/>fallback snapshot/sample]
+    B --> D[SQLite snapshots store.py<br/>new badges · time-on-board]
+    B --> E[Title clustering aggregate.py<br/>cross-source board]
+    C --> F[Streamlit rendering<br/>category views · mixed stream · badges]
+    D --> F
+    E --> F
 ```
-
-1. **Fetch**: `fetch_baidu_board(tab)` pulls the selected board from top.baidu.com and parses it into table data
-2. **Fallback**: cached or sample data is rendered first to keep the first paint instant; click "Fetch Latest Data" to switch to real-time data when the network is available
-3. **Network settings**: the sidebar supports a proxy (http/https/socks5h), ignoring SSL certificate verification, connection tests, and one-click diagnose/connect
-4. **Display**: Streamlit renders the ranking as animated cards (medal badges + heat bars) with Overall / Novels / Movies / TV Series switching and localized menus
-
-## 📖 Usage Guide
-
-- The top of the page shows the current board. The "Fetch Latest Data" button on the right refreshes it immediately.
-- Use the board switcher at the top right (Overall / Novels / Movies / TV Series) to view different boards.
-- The left sidebar (collapsed by default, click to expand) provides:
-  - Enable proxy and fill in a proxy address (http/https/socks5h supported)
-  - Ignore SSL certificate verification (needed by some intercepting proxies)
-  - Test connection / one-click diagnose / one-click connect (tries to auto-pick a working proxy)
-  - Use sample data (view the UI even when the network is unavailable)
 
 ## 📁 Project Structure
 
-```text
-baiduhotsearch/
-├── app.py               # Streamlit main app: board fetching / rendering / sidebar settings / theme injection
-├── logo.svg             # Project logo
-├── docs/
-│   └── index.html       # GitHub Pages redirect page (forwards to Streamlit Cloud)
-└── .streamlit/          # Streamlit config (config.toml dark theme)
+```
+├── app.py          # Page shell: view nav, cache orchestration, fallbacks, cards
+├── sources.py      # Source registry & fetchers (unified schema, streamlit-free)
+├── aggregate.py    # Cross-source board: title normalization + similarity clustering
+├── store.py        # SQLite history snapshots (new / time-on-board)
+├── styles.py       # Theme CSS & component styles
+└── logo.svg
 ```
 
 ## 🚀 Quick Start
 
 ```bash
-git clone https://github.com/Mocas-12/baiduhotsearch.git
-cd baiduhotsearch
-pip install -U streamlit pandas requests
+pip install -r requirements.txt
 streamlit run app.py
 ```
 
-> The terminal prints the visit URL (e.g. http://localhost:8501); open it in a browser. Requirements: Python 3.9+ (3.10/3.11 recommended).
+## ⚙️ Configuration
 
-| Command | Description |
-| --- | --- |
-| `pip install -U streamlit pandas requests` | Install dependencies |
-| `streamlit run app.py` | Start the app |
+Everything lives in the sidebar — no code changes needed:
 
-## 🌐 Publishing Online
-
-> Note: GitHub Pages only serves static sites and cannot run Python/Streamlit. The recommended approach is "app deployment + Pages presentation".
-
-### Option A: Streamlit Community Cloud (recommended, free)
-
-1. Push this repository to GitHub.
-2. Open https://share.streamlit.io/ , connect your GitHub repo, and pick `app.py` as the entry point.
-3. After deployment you get a public URL (shaped like `https://<your-app>.streamlit.app`).
-4. On GitHub Pages, use a static page to redirect to or embed that URL:
-   - Redirect page (recommended, best compatibility): create `docs/index.html` in the repo with the following content, replacing `EXTERNAL_URL` with your online address.
-
-     ```html
-     <!doctype html>
-     <meta charset="utf-8">
-     <meta http-equiv="refresh" content="0; url=EXTERNAL_URL">
-     <title>跳转中...</title>
-     <a href="EXTERNAL_URL">如果未自动跳转，请点击这里访问应用</a>
-     ```
-
-   - Or try an iframe (some hosts may block embedding):
-
-     ```html
-     <!doctype html>
-     <meta charset="utf-8">
-     <style>html,body,iframe{height:100%;width:100%;margin:0;border:0;}</style>
-     <iframe src="EXTERNAL_URL"></iframe>
-     ```
-
-5. In the GitHub repo settings → Pages, set Source to `Deploy from a branch` and pick the `/docs` directory of the `main` branch.
-
-### Option B: Self-hosted or third-party platforms (Railway/Render/Fly.io/Docker etc.)
-
-1. Deploy on a server or platform:
-
-   ```bash
-   pip install -U streamlit pandas requests
-   streamlit run app.py --server.address 0.0.0.0 --server.port 80
-   ```
-
-   Or with Docker (add your own Dockerfile if desired):
-
-   ```dockerfile
-   FROM python:3.11-slim
-   WORKDIR /app
-   COPY . .
-   RUN pip install -U streamlit pandas requests
-   EXPOSE 8501
-   CMD ["streamlit","run","app.py","--server.address","0.0.0.0","--server.port","8501"]
-   ```
-
-2. Once you have a publicly accessible URL, configure the GitHub Pages redirect/embed as described above.
-
-## 🛠️ Customization
-
-- Colors & styles: `apply_theme()` in `app.py` injects CSS/JS — tweak shadows, radii, etc.; native widget colors follow `.streamlit/config.toml`.
-- Card layout: rank / title / summary / heat are rendered by `render_hot_cards()`; tweak it to show or hide fields (e.g. the summary line).
-- Board types: fetched via `fetch_baidu_board(tab)`. Currently mapped to Overall / Novels / Movies / TV Series; add more candidates in `board_map`.
+- **60s API instance**: built-in official + community instances with automatic failover; public instances are rate-limited, so you can point to your [self-hosted instance](https://github.com/vikiboss/60s) (Docker / Node, one-click to Vercel / Zeabur)
+- **Proxy**: the Baidu source connects directly to top.baidu.com and usually needs an HTTPS proxy outside mainland China; "Test connection / auto-pick proxy" included
+- **Sample data**: preview the full UI with no network
 
 ## ❓ FAQ
 
-<details>
-<summary><b>Does the first open show real-time data?</b></summary>
+**A source shows "temporarily unavailable"?**
+Usually public-instance rate limiting or an upstream hiccup — it auto-retries within 5 minutes. Check the diagnostics panel, or switch to a self-hosted 60s API instance.
 
-- To keep the first screen fast, the app prefers cached or sample data; click "Fetch Latest Data" to switch to real-time data
-</details>
+**Is history (new badges) kept forever?**
+Streamlit Cloud wipes the filesystem on redeploy, so history only accumulates within one instance's lifetime. Self-host with a persistent volume to keep it long-term (7 days retained by default).
 
-<details>
-<summary><b>What if the connection fails?</b></summary>
+**Why can't heat numbers be compared across sources?**
+Every platform scores heat differently; bars are relative within the current view. The cross-source board ranks by hit count first.
 
-- Check your network; if a proxy is needed, enable it in the sidebar and fill in the address (e.g. `http://127.0.0.1:7890`)
-- Try checking "Ignore SSL certificate verification"
-- Use "one-click diagnose / one-click connect" to quickly locate a working connection mode
-</details>
+## 👤 Author
+
+**Unlimited Box** · [a18577y@gmail.com](mailto:a18577y@gmail.com)
+
+All data comes from public boards of each platform, for personal learning and information browsing only.
 
 ## 📄 License
 
-- Free for personal/internal use. For public deployments, follow the data source site's usage rules and scraping limits; avoid high-frequency requests.
-
----
-
-<div align="center">
-
-**Made with 💙**
-
-🌐 [Live Dashboard](https://baiduhotsearch-d9ysnhxbkzeskrnd5apnn5.streamlit.app/) · 🐛 [Report an Issue](https://github.com/Mocas-12/baiduhotsearch/issues)
-
-</div>
+MIT

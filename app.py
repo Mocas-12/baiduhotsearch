@@ -1,534 +1,37 @@
-import os
+# -*- coding: utf-8 -*-
+"""全网热搜雷达 —— 国内热点 · 国际大事 · 科技动态，一页看清。
+
+多源聚合架构：
+    sources.py   数据源注册表与抓取器（统一 schema）
+    aggregate.py 跨源交叉榜聚类
+    store.py     SQLite 历史快照（新上榜 / 上榜时长）
+    styles.py    主题样式
+"""
 import html
+import os
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
+from typing import Optional
+
 import streamlit as st
-import pandas as pd
-import requests
-from typing import Optional, Tuple
 import streamlit.components.v1 as components
 
-st.set_page_config(page_title="中国热搜", layout="wide", initial_sidebar_state="collapsed")
+import aggregate
+import sources
+import store
+from styles import apply_theme
 
-def apply_theme():
-    st.markdown(
-        """
-        <style>
-        :root{
-          --panel: rgba(255,255,255,0.045);
-          --border: rgba(255,255,255,0.08);
-          --txt: #f2f4f9;
-          --sub: #8f96ab;
-        }
-        html, body, .stApp, [data-testid="stAppViewContainer"]{
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
-        }
-        .stApp{ -webkit-font-smoothing: antialiased; }
-        html{ scroll-behavior: smooth; }
+st.set_page_config(page_title="全网热搜雷达", layout="wide", initial_sidebar_state="collapsed")
 
-        [data-testid="stAppViewContainer"]{
-          background:
-            radial-gradient(1100px 520px at 12% -8%, rgba(255,81,47,0.16), transparent 62%),
-            radial-gradient(900px 480px at 108% 6%, rgba(255,154,60,0.12), transparent 58%),
-            radial-gradient(700px 420px at 50% 115%, rgba(255,77,109,0.08), transparent 60%),
-            linear-gradient(180deg, #0d0f16 0%, #111420 100%);
-          background-attachment: fixed;
-        }
-        [data-testid="stMain"], section.stMain, [data-testid="stAppViewContainer"] > div{
-          background: transparent;
-        }
-        [data-testid="stHeader"]{
-          background: rgba(13,15,22,0.55) !important;
-          backdrop-filter: blur(12px);
-          border-bottom: 1px solid rgba(255,255,255,0.05);
-        }
-        .main .block-container, [data-testid="stMainBlockContainer"]{
-          max-width: 1180px;
-          margin-inline: auto;
-          padding: 1.2rem 1.4rem 3.4rem;
-        }
+CACHE_TTL = 900   # 成功结果缓存 15 分钟
+FAIL_TTL = 300    # 失败/示例结果只缓存 5 分钟，避免重跑时反复冲击已限流的接口
+VIEW_LABELS = ["🌐 交叉榜", "🇨🇳 国内", "🌍 国际", "💻 科技"]
+VIEW_KEYS = {"🌐 交叉榜": "cross", "🇨🇳 国内": "domestic", "🌍 国际": "world", "💻 科技": "tech"}
+KEY_LABELS = {v: k for k, v in VIEW_KEYS.items()}
 
-        /* ===== Hero ===== */
-        .hero{ padding: 24px 6px 2px; }
-        .hero-badge{
-          display: inline-flex; align-items: center; gap: 8px;
-          padding: 7px 15px; border-radius: 999px;
-          background: rgba(255,90,45,0.12);
-          border: 1px solid rgba(255,110,60,0.35);
-          color: #ffb59e; font-size: 13px; font-weight: 600; letter-spacing: 0.5px;
-        }
-        .live-dot{
-          width: 8px; height: 8px; border-radius: 50%;
-          background: #ff4d2e;
-          animation: pulse 1.6s infinite;
-        }
-        @keyframes pulse{
-          0%{ box-shadow: 0 0 0 0 rgba(255,77,46,0.55); }
-          70%{ box-shadow: 0 0 0 9px rgba(255,77,46,0); }
-          100%{ box-shadow: 0 0 0 0 rgba(255,77,46,0); }
-        }
-        .hero-title{
-          font-size: clamp(38px, 6vw, 62px);
-          font-weight: 900; line-height: 1.12;
-          margin: 14px 0 6px; color: var(--txt); letter-spacing: 1px;
-        }
-        .hero-title .grad{
-          background: linear-gradient(120deg, #ff512f 10%, #ff9a3c 60%, #ffd166 100%);
-          -webkit-background-clip: text; background-clip: text; color: transparent;
-        }
-        .flame{
-          display: inline-block;
-          animation: flick 1.8s ease-in-out infinite;
-          filter: drop-shadow(0 4px 14px rgba(255,102,0,0.55));
-          margin-right: 6px;
-        }
-        @keyframes flick{
-          0%, 100%{ transform: scale(1) rotate(-2deg); }
-          50%{ transform: scale(1.12) rotate(3deg); }
-        }
-        .hero-sub{ color: var(--sub); font-size: 15.5px; margin: 0 0 6px; }
-        .hero-rule{
-          height: 3px; width: 96px; border-radius: 99px;
-          background: linear-gradient(90deg, #ff512f, #ff9a3c, transparent);
-          margin: 16px 0 8px;
-        }
 
-        /* ===== 元信息 chips ===== */
-        .meta-row{ display: flex; flex-wrap: wrap; gap: 10px; margin: 4px 0 16px; }
-        .meta-chip{
-          display: inline-flex; align-items: center; gap: 7px;
-          padding: 7px 14px; border-radius: 999px;
-          background: rgba(255,255,255,0.05);
-          border: 1px solid rgba(255,255,255,0.09);
-          color: #aeb3c5; font-size: 13px;
-        }
-        .meta-chip b{ color: #eef0f6; font-weight: 700; }
-
-        /* ===== 热搜卡片 ===== */
-        .hot-list{ margin-top: 4px; }
-        .hot-card{
-          display: flex; align-items: flex-start; gap: 14px;
-          padding: 14px 16px; border-radius: 18px;
-          background: var(--panel);
-          border: 1px solid var(--border);
-          margin-bottom: 10px;
-          transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease, background 0.22s ease;
-          animation: cardIn 0.45s cubic-bezier(0.2, 0.7, 0.3, 1) both;
-          animation-delay: calc(var(--i) * 22ms);
-        }
-        .hot-card:hover{
-          transform: translateY(-3px);
-          border-color: rgba(255,140,60,0.45);
-          background: rgba(255,255,255,0.07);
-          box-shadow: 0 14px 34px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,120,60,0.12), 0 8px 30px rgba(255,90,40,0.12);
-        }
-        @keyframes cardIn{
-          from{ opacity: 0; transform: translateY(14px) scale(0.985); }
-          to{ opacity: 1; transform: none; }
-        }
-        .hot-card.top1{
-          border-color: rgba(255,170,60,0.4);
-          background: linear-gradient(135deg, rgba(255,120,40,0.10), rgba(255,255,255,0.04));
-        }
-        .rank{
-          flex: 0 0 44px; height: 44px; border-radius: 14px;
-          display: flex; align-items: center; justify-content: center;
-          font-weight: 800; font-size: 16px; color: #c8cbd8;
-          background: rgba(255,255,255,0.06);
-          border: 1px solid rgba(255,255,255,0.08);
-        }
-        .rank.r1{ background: linear-gradient(135deg, #ffb300, #ff7a00); color: #fff; box-shadow: 0 6px 18px rgba(255,140,0,0.35); border: none; }
-        .rank.r2{ background: linear-gradient(135deg, #c9d1e0, #8f9bb0); color: #141824; border: none; }
-        .rank.r3{ background: linear-gradient(135deg, #e0955c, #a9632f); color: #fff; border: none; }
-        .hot-main{ flex: 1 1 auto; min-width: 0; }
-        .hot-word{
-          font-size: 16.5px; font-weight: 700; color: #f2f4f9; text-decoration: none;
-        }
-        .hot-word:hover{ color: #ffb37e; }
-        .hot-desc{
-          margin-top: 4px; color: var(--sub); font-size: 13px; line-height: 1.5;
-          display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-        }
-        .hot-heat{ flex: 0 0 190px; text-align: right; }
-        .heat-num{
-          font-weight: 800; color: #ff9a3c; font-size: 14.5px;
-          font-variant-numeric: tabular-nums;
-        }
-        .heat-bar{
-          margin-top: 7px; height: 6px; border-radius: 99px;
-          background: rgba(255,255,255,0.08); overflow: hidden;
-        }
-        .heat-fill{
-          height: 100%; border-radius: 99px;
-          background: linear-gradient(90deg, #ff512f, #ff9a3c);
-          box-shadow: 0 0 10px rgba(255,120,40,0.5);
-          transition: width 0.6s ease;
-        }
-        @media (max-width: 720px){
-          .hot-card{ flex-wrap: wrap; }
-          .hot-heat{ flex: 1 1 100%; text-align: left; }
-        }
-
-        /* ===== 侧边栏 ===== */
-        [data-testid="stSidebar"]{
-          background: linear-gradient(180deg, rgba(22,25,36,0.97), rgba(16,18,27,0.97));
-          border-right: 1px solid rgba(255,255,255,0.07);
-          box-shadow: 6px 0 30px rgba(0,0,0,0.35);
-        }
-        [data-testid="stSidebar"] *{ color: #c6cad7; }
-        [data-testid="stSidebar"] h1,
-        [data-testid="stSidebar"] h2,
-        [data-testid="stSidebar"] h3{
-          background: linear-gradient(90deg, #ff9a3c, #ff512f);
-          -webkit-background-clip: text; background-clip: text;
-          color: transparent !important; font-weight: 800;
-        }
-        [data-testid="stSidebar"] hr{ border-color: rgba(255,255,255,0.08); }
-
-        /* ===== 输入控件 ===== */
-        input[type="text"], input[type="number"], textarea{
-          background: rgba(255,255,255,0.06) !important;
-          color: #eef0f6 !important;
-          border: 1px solid rgba(255,255,255,0.12) !important;
-          border-radius: 12px !important;
-        }
-        input:focus, textarea:focus{
-          border-color: rgba(255,140,60,0.6) !important;
-          box-shadow: 0 0 0 3px rgba(255,110,60,0.15) !important;
-        }
-
-        /* ===== 按钮 ===== */
-        .stButton > button{
-          border-radius: 999px !important;
-          border: 1px solid rgba(255,255,255,0.12) !important;
-          background: rgba(255,255,255,0.06) !important;
-          color: #eef0f6 !important;
-          padding: 0.42rem 1.05rem;
-          font-weight: 600;
-          transition: all 0.22s ease;
-        }
-        .stButton > button:not([kind="primary"]):hover{
-          transform: translateY(-1px);
-          border-color: rgba(255,140,60,0.55) !important;
-          background: rgba(255,120,60,0.14) !important;
-          color: #fff !important;
-        }
-        button[kind="primary"]{
-          background: linear-gradient(135deg, #ff512f, #ff9a3c) !important;
-          border: none !important;
-          color: #fff !important;
-          box-shadow: 0 8px 22px rgba(255,81,47,0.35);
-        }
-        button[kind="primary"]:hover{
-          transform: translateY(-1px);
-          box-shadow: 0 12px 28px rgba(255,81,47,0.5);
-          filter: saturate(1.06);
-        }
-        button[kind="primary"]:active{ transform: scale(0.98); }
-
-        /* ===== 榜单切换 chips ===== */
-        [data-testid="stRadio"] label{
-          padding: 5px 13px !important; margin-right: 6px;
-          border-radius: 999px;
-          background: rgba(255,255,255,0.05);
-          border: 1px solid rgba(255,255,255,0.09);
-          transition: all 0.2s ease;
-        }
-        [data-testid="stRadio"] label:hover{ border-color: rgba(255,140,60,0.5); }
-        [data-testid="stRadio"] label:has(input:checked){
-          background: rgba(255,120,60,0.16) !important;
-          border-color: rgba(255,140,60,0.6) !important;
-        }
-        [data-testid="stRadio"] label:has(input:checked) p,
-        [data-testid="stRadio"] label:has(input:checked) div{
-          color: #ffd9c2 !important; font-weight: 700;
-        }
-
-        /* ===== 滑块 / 提示条 / 其他 ===== */
-        .stSlider{ color: var(--sub); }
-        .stSlider [role="slider"]{
-          background: linear-gradient(135deg, #ff512f, #ff9a3c) !important;
-          border: 2px solid #1a1e2c !important;
-          box-shadow: 0 2px 10px rgba(255,81,47,0.5);
-        }
-        [data-testid="stAlert"]{
-          border-radius: 14px !important; overflow: hidden;
-          backdrop-filter: blur(8px);
-        }
-        [data-testid="stCaptionContainer"], .stCaption{ color: #78809a !important; }
-        [data-testid="stCollapseSidebar"]{ border-radius: 10px; }
-        hr{ border-color: rgba(255,255,255,0.08); }
-
-        ::selection{ background: rgba(255,120,60,0.35); color: #fff; }
-        ::-webkit-scrollbar{ width: 9px; height: 9px; }
-        ::-webkit-scrollbar-thumb{
-          background: rgba(255,255,255,0.14);
-          border-radius: 99px;
-          border: 2px solid transparent;
-          background-clip: content-box;
-        }
-        ::-webkit-scrollbar-thumb:hover{
-          background: rgba(255,140,60,0.45);
-          background-clip: content-box;
-        }
-        ::-webkit-scrollbar-track{ background: transparent; }
-        footer { visibility: hidden; }
-        </style>
-        <script>
-        (function(){
-          const map = new Map([
-            ["Deploy","部署"],
-            ["Rerun","重新运行"],
-            ["Run","运行"],
-            ["Settings","设置"],
-            ["Print","打印"],
-            ["Record a screencast","录制屏幕"],
-            ["Developer options","开发者选项"],
-            ["Clear cache","清除缓存"],
-            ["Sort ascending","升序排序"],
-            ["Sort descending","降序排序"],
-            ["Format","格式"],
-            ["Autosize","自动列宽"],
-            ["Autosize all columns","自动调整全部列宽"],
-            ["Auto-size this column","自动调整该列宽"],
-            ["Pin column","固定列"],
-            ["Unpin column","取消固定列"],
-            ["Pin left","固定到左侧"],
-            ["Pin right","固定到右侧"],
-            ["Freeze column","冻结列"],
-            ["Unfreeze column","取消冻结列"],
-            ["Hide column","隐藏列"],
-            ["Show columns","显示列"],
-            ["Reset columns","重置列"],
-            ["Copy","复制"],
-            ["Copy with headers","复制（含表头）"],
-            ["Export","导出"],
-            ["Download as CSV","下载为 CSV"],
-            ["Download as JSON","下载为 JSON"],
-            ["Filter rows","筛选行"],
-            ["Filter","筛选"],
-            ["Search","搜索"],
-            ["Expand data","展开数据"],
-            ["Fit to width","适配宽度"],
-            ["Resize","调整大小"],
-            ["Group by","分组"],
-            ["Aggregate","汇总"],
-            ["Fullscreen","全屏"]
-          ]);
-          function translateText(txt){
-            if(!txt) return txt;
-            let out = txt;
-            map.forEach((zh,en)=>{
-              out = out.replaceAll(en, zh);
-            });
-            return out;
-          }
-          function translateAttributes(el){
-            ["title","aria-label","aria-description"].forEach(attr=>{
-              if(el.hasAttribute && el.hasAttribute(attr)){
-                const v = el.getAttribute(attr);
-                const nv = translateText(v);
-                if(nv !== v) el.setAttribute(attr, nv);
-              }
-            });
-          }
-          function translateNode(node){
-            if(!node) return;
-            if(node.nodeType===3){
-              const nv = translateText(node.textContent);
-              if(nv !== node.textContent) node.textContent = nv;
-              return;
-            }
-            if(node.nodeType===1){
-              const el = node;
-              translateAttributes(el);
-              if(el.childNodes) el.childNodes.forEach(translateNode);
-            }
-          }
-          const obs = new MutationObserver((muts)=>{
-            muts.forEach(m=>{
-              m.addedNodes && m.addedNodes.forEach(translateNode);
-              if(m.target) translateNode(m.target);
-            });
-          });
-          translateNode(document.body);
-          obs.observe(document.body, {subtree:true, childList:true, characterData:true});
-          setInterval(()=>{
-            document.querySelectorAll("header [role='button'], header a, header button, [title], [aria-label]").forEach(el=>{
-              if(el){
-                if(el.textContent){
-                  const nv = translateText(el.textContent);
-                  if(nv !== el.textContent) el.textContent = nv;
-                }
-                translateAttributes(el);
-              }
-            });
-          }, 900);
-        })();
-        </script>
-        """,
-        unsafe_allow_html=True,
-    )
-
-def render_hero():
-    st.markdown(
-        """
-        <div class="hero">
-          <div class="hero-badge"><span class="live-dot"></span>LIVE · 百度实时热搜</div>
-          <h1 class="hero-title"><span class="flame">🔥</span>中国<span class="grad">热搜</span></h1>
-          <p class="hero-sub">一眼看尽全网正在发生的事 · 数据实时同步自百度热搜榜</p>
-          <div class="hero-rule"></div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-def render_sidebar():
-    env_proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy") or ""
-    if "initialized" not in st.session_state:
-        st.session_state["initialized"] = True
-        st.session_state["use_sample"] = False
-        if env_proxy:
-            st.session_state["proxy_enabled"] = True
-            st.session_state["proxy_url"] = env_proxy
-    st.session_state.setdefault("proxy_enabled", bool(env_proxy))
-    st.session_state.setdefault("proxy_url", env_proxy)
-    st.session_state.setdefault("use_sample", False)
-    with st.sidebar:
-        st.header("设置")
-        st.checkbox("启用代理", key="proxy_enabled")
-        st.text_input("HTTPS代理（示例：https://1.2.3.4:8080）", key="proxy_url")
-        st.checkbox("忽略SSL证书验证（部分拦截代理需开启）", key="insecure_ssl", value=False)
-        cols = st.columns(2)
-        with cols[0]:
-            test = st.button("测试连接")
-        with cols[1]:
-            st.checkbox("使用示例数据", key="use_sample")
-        cols2 = st.columns(2)
-        with cols2[0]:
-            diag = st.button("一键诊断")
-        with cols2[1]:
-            auto = st.button("一键连接")
-        if test:
-            ok = False
-            try:
-                s = requests.Session()
-                if st.session_state.get("proxy_enabled") and st.session_state.get("proxy_url"):
-                    s.proxies.update({"http": st.session_state["proxy_url"], "https": st.session_state["proxy_url"]})
-                r = s.get("https://top.baidu.com/api/board?platform=pc&tab=realtime", timeout=8, verify=not st.session_state.get("insecure_ssl", False))
-                ok = r.status_code < 400 and "data" in r.text
-            except Exception:
-                ok = False
-            if ok:
-                st.success("连接正常")
-            else:
-                st.error("无法连接到百度热搜接口，可能需要代理或稍后重试")
-        if diag:
-            try:
-                df = fetch_baidu_board("realtime")
-                st.success(f"百度热搜获取成功：{len(df)} 条")
-                st.dataframe(df.head(10), width="stretch", hide_index=True)
-            except Exception as e:
-                st.error(f"百度热搜获取失败：{e}")
-        if auto:
-            candidates = []
-            # 环境变量
-            if env_proxy:
-                candidates.append(env_proxy)
-            # 常见本地端口
-            candidates += [
-                "https://127.0.0.1:7890",
-                "http://127.0.0.1:7890",
-                "socks5h://127.0.0.1:1080",
-                "https://127.0.0.1:1080",
-                "http://127.0.0.1:1080",
-                "http://127.0.0.1:8889",
-                "http://127.0.0.1:8080",
-            ]
-            # 先试直连
-            ok, used = try_connect(None, not st.session_state.get("insecure_ssl", False))
-            if ok:
-                st.success("直连可用，已关闭代理")
-                st.session_state["proxy_enabled"] = False
-                st.session_state["proxy_url"] = ""
-                os.environ.pop("HTTPS_PROXY", None)
-                os.environ.pop("https_proxy", None)
-            else:
-                chosen = None
-                for proxy in candidates:
-                    ok, _ = try_connect(proxy, not st.session_state.get("insecure_ssl", False))
-                    if ok:
-                        chosen = proxy
-                        break
-                if chosen:
-                    st.session_state["proxy_enabled"] = True
-                    st.session_state["proxy_url"] = chosen
-                    os.environ["HTTPS_PROXY"] = chosen
-                    os.environ["https_proxy"] = chosen
-                    st.success(f"已自动选择代理：{chosen}")
-                else:
-                    st.error("未找到可用的代理，请手动填写再试")
-
-def try_connect(proxy: Optional[str], verify: bool) -> Tuple[bool, Optional[str]]:
-    try:
-        s = requests.Session()
-        s.headers.update({"User-Agent": "Mozilla/5.0"})
-        if proxy:
-            s.proxies.update({"http": proxy, "https": proxy})
-        s.verify = verify
-        r = s.get("https://top.baidu.com/api/board?platform=pc&tab=realtime", timeout=8)
-        ok = r.status_code == 200 and "data" in r.text
-        return ok, proxy
-    except Exception:
-        return False, proxy
-
-def _http_session():
-    s = requests.Session()
-    s.headers.update({
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
-        "Referer": "https://top.baidu.com/",
-        "Accept": "application/json, text/plain, */*",
-    })
-    proxy_enabled = st.session_state.get("proxy_enabled", False)
-    proxy_url = st.session_state.get("proxy_url", "").strip()
-    if proxy_enabled and proxy_url:
-        s.proxies.update({"http": proxy_url, "https": proxy_url})
-    s.verify = not st.session_state.get("insecure_ssl", False)
-    return s
-
-def fetch_baidu_board(tab: str = "realtime"):
-    url = f"https://top.baidu.com/api/board?platform=pc&tab={tab}"
-    s = _http_session()
-    r = s.get(url, timeout=10)
-    r.raise_for_status()
-    data = r.json()
-    cards = data.get("data", {}).get("cards", [])
-    items = []
-    for card in cards:
-        for key in ("topContent", "content"):
-            for it in card.get(key) or []:
-                items.append({
-                    "词条": it.get("word") or it.get("name") or it.get("title"),
-                    "简介": it.get("desc") or it.get("brief") or "",
-                    "热度": it.get("hotScore") or it.get("heat") or "",
-                    "链接": it.get("url") or it.get("link") or "",
-                })
-    df = pd.DataFrame(items)
-    if not df.empty:
-        df.insert(0, "排名", range(1, len(df) + 1))
-    return df
-
-def fetch_baidu_board_with_fallback(candidates):
-    last_err = None
-    for tab in candidates:
-        try:
-            df = fetch_baidu_board(tab)
-            if not df.empty:
-                return df, tab
-        except Exception as e:
-            last_err = e
-            continue
-    if last_err:
-        raise last_err
-    return pd.DataFrame(), candidates[0]
+# ---------------------------------------------------------------- 基础工具
 
 def _fmt_heat(v):
     try:
@@ -537,134 +40,387 @@ def _fmt_heat(v):
         s = str(v) if v is not None else ""
         return s if s else "—"
 
-def render_hot_cards(df, topn):
-    rows = df.head(topn).reset_index(drop=True)
-    if "热度" in rows.columns:
-        heat_vals = pd.to_numeric(rows["热度"], errors="coerce")
-    else:
-        heat_vals = pd.Series([float("nan")] * len(rows))
-    max_heat = float(heat_vals.max()) if heat_vals.notna().any() else 0.0
-    if max_heat <= 0:
-        max_heat = 1.0
-    cards = []
-    for i, row in rows.iterrows():
-        try:
-            rank = int(row.get("排名", i + 1))
-        except (TypeError, ValueError):
-            rank = i + 1
-        word = str(row.get("词条") or "未知词条")
-        desc = str(row.get("简介") or "").strip()
-        link = str(row.get("链接") or "").strip()
-        hv = heat_vals.iloc[i]
-        hv = 0.0 if pd.isna(hv) else float(hv)
-        pct = int(max(4, min(100, round(hv / max_heat * 100))))
-        delay = min(i, 25)
-        if rank == 1:
-            rank_cls, top_cls = "rank r1", " top1"
-        elif rank == 2:
-            rank_cls, top_cls = "rank r2", ""
-        elif rank == 3:
-            rank_cls, top_cls = "rank r3", ""
-        else:
-            rank_cls, top_cls = "rank", ""
-        if link:
-            word_html = f'<a class="hot-word" href="{html.escape(link, quote=True)}" target="_blank" rel="noopener">{html.escape(word)}</a>'
-        else:
-            word_html = f'<span class="hot-word">{html.escape(word)}</span>'
-        desc_html = f'<div class="hot-desc" title="{html.escape(desc)}">{html.escape(desc)}</div>' if desc else ""
-        cards.append(
-            f'<div class="hot-card{top_cls}" style="--i:{delay}">'
-            f'<div class="{rank_cls}">{rank}</div>'
-            f'<div class="hot-main">{word_html}{desc_html}</div>'
-            f'<div class="hot-heat"><span class="heat-num">🔥 {_fmt_heat(row.get("热度"))}</span>'
-            f'<div class="heat-bar"><div class="heat-fill" style="width:{pct}%"></div></div></div>'
-            f'</div>'
-        )
-    st.markdown('<div class="hot-list">' + "".join(cards) + "</div>", unsafe_allow_html=True)
 
-def render_meta_chips(df, board_label):
+def _fmt_age(sec: float) -> str:
+    return f"{int(sec // 60)} 分钟前" if sec < 3600 else f"{sec / 3600:.1f} 小时前"
+
+
+def _cfg() -> dict:
+    return {
+        "proxy": st.session_state.get("proxy_url", "").strip()
+        if st.session_state.get("proxy_enabled") else None,
+        "insecure": bool(st.session_state.get("insecure_ssl")),
+        "sixty_base": (st.session_state.get("sixty_base") or "").strip() or None,
+    }
+
+
+def _pill(color: str, label: str) -> str:
+    return f'<span class="src-badge" style="background:{color};opacity:0.92">{html.escape(label)}</span>'
+
+
+# ---------------------------------------------------------------- 数据获取（每源缓存 + 失败降级）
+
+def _fetch_one(key: str, cfg: dict, use_sample: bool, cached: Optional[dict]) -> dict:
+    """纯函数（不访问 session_state，可安全跑在线程池里）：抓单源并附带历史标记。"""
+    try:
+        items = sources.SOURCES[key]["fetch"](cfg)
+        if not items:
+            raise RuntimeError("接口返回空数据")
+        try:  # 先查旧历史再写快照，顺序不能反，否则「新上榜」永远不触发
+            marks = store.first_seen_many(key, [it["title"] for it in items[:60]])
+            store.save_snapshot(key, items)
+            for it in items:
+                it["_first_seen"] = marks.get(it["title"])
+        except Exception:
+            pass
+        return {"ok": True, "items": items, "stale": False, "ts": time.time()}
+    except Exception as e:
+        if cached and cached.get("items"):
+            return {"ok": True, "items": cached["items"], "stale": True,
+                    "ts": cached["ts"], "error": str(e)}
+        if use_sample:
+            return {"ok": False, "items": sources.sample_items(key),
+                    "sample": True, "ts": time.time(), "error": str(e)}
+        return {"ok": False, "items": [], "ts": time.time(), "error": str(e)}
+
+
+def get_sources(keys: list, force: bool = False) -> dict:
+    """批量获取，返回 {source_key: result}。
+
+    成功结果按 CACHE_TTL 缓存；失败/示例结果按 FAIL_TTL 短缓存，
+    否则每次重跑都会重新冲击已经限流的数据源，形成恶性循环。
+    抓取失败但存在旧成功缓存时（stale），保留旧缓存不刷新时间戳，
+    下个周期会自动重试。
+    """
+    cache_all = st.session_state.setdefault("data_cache", {})
+    results = {}
+    todo = []
+    now = time.time()
+    for k in keys:
+        c = cache_all.get(k)
+        if c and not force:
+            kind = c.get("kind", "ok")
+            if now - c["ts"] < (CACHE_TTL if kind == "ok" else FAIL_TTL):
+                res = {"ok": kind == "ok", "items": c.get("items", []), "stale": False, "ts": c["ts"]}
+                if kind == "sample":
+                    res["sample"] = True
+                results[k] = res
+                continue
+        todo.append(k)
+    if todo:
+        cfg, use_sample = _cfg(), st.session_state.get("use_sample", False)
+        with ThreadPoolExecutor(max_workers=6) as ex:
+            futs = {ex.submit(_fetch_one, k, cfg, use_sample, cache_all.get(k)): k for k in todo}
+            for fut in as_completed(futs):
+                k = futs[fut]
+                try:
+                    res = fut.result()
+                except Exception as e:
+                    res = {"ok": False, "items": [], "ts": time.time(), "error": str(e)}
+                results[k] = res
+                if not res.get("stale"):  # stale 时保留旧缓存条目，维持原时间戳以便重试
+                    kind = "ok" if res["ok"] and not res.get("sample") else (
+                        "sample" if res.get("sample") else "fail")
+                    cache_all[k] = {"ts": res["ts"], "items": res["items"], "kind": kind}
+    return results
+
+
+def _view_sources(view_key: str) -> list:
+    if view_key == "cross":
+        return list(sources.SOURCES.keys())
+    return list(sources.sources_of(view_key).keys())
+
+
+# ---------------------------------------------------------------- 公共渲染
+
+def _rank_badge(rank: int) -> str:
+    cls = {1: "rank r1", 2: "rank r2", 3: "rank r3"}.get(rank, "rank")
+    return f'<div class="{cls}">{rank}</div>'
+
+
+def _heat_html(heat, pct: Optional[int]) -> str:
+    num = f'<span class="heat-num">🔥 {_fmt_heat(heat)}</span>'
+    if pct is None:
+        return f'<div class="hot-heat">{num}</div>'
+    bar = f'<div class="heat-bar"><div class="heat-fill" style="width:{pct}%"></div></div>'
+    return f'<div class="hot-heat">{num}{bar}</div>'
+
+
+def _tag_pills(item: dict) -> str:
+    fs = item.get("_first_seen")
+    if fs is None:
+        return '<div class="pill-row"><span class="tag-badge new">🆕 新上榜</span></div>'
+    hours = max(0.0, (time.time() - fs.timestamp()) / 3600)
+    label = f"⏱ 在榜 {hours:.0f} 小时" if hours >= 1 else "⏱ 在榜不足 1 小时"
+    return f'<div class="pill-row"><span class="tag-badge">{label}</span></div>'
+
+
+def _card_shell(rank: int, pill_html: str, word_html: str, desc_html: str,
+                tail_html: str, heat_html: str):
+    st.markdown(
+        f'<div class="hot-card{" top1" if rank == 1 else ""}" style="--i:{min(rank - 1, 25)}">'
+        f'{_rank_badge(rank)}'
+        f'<div class="hot-main">{pill_html}{word_html}{desc_html}{tail_html}</div>'
+        f'{heat_html}</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def _word_desc_html(item: dict):
+    word = str(item.get("title") or "未知词条")
+    desc = str(item.get("desc") or "").strip()
+    link = str(item.get("url") or "").strip()
+    if link:
+        word_html = (f'<a class="hot-word" href="{html.escape(link, quote=True)}" '
+                     f'target="_blank" rel="noopener">{html.escape(word)}</a>')
+    else:
+        word_html = f'<span class="hot-word">{html.escape(word)}</span>'
+    desc_html = f'<div class="hot-desc" title="{html.escape(desc)}">{html.escape(desc)}</div>' if desc else ""
+    return word_html, desc_html
+
+
+def render_meta_chips(results: dict, keys: list, view_label: str, n_items: int, n_sources: int):
     chips = []
-    ts = st.session_state.get("hot_ts")
-    if ts is not None:
-        chips.append(f'<span class="meta-chip">🕒 更新于 <b>{ts.strftime("%H:%M:%S")}</b></span>')
-    chips.append(f'<span class="meta-chip">📊 已收录 <b>{len(df)}</b> 条</span>')
-    if "热度" in df.columns:
-        hv = pd.to_numeric(df["热度"], errors="coerce").max()
-        if pd.notna(hv):
-            chips.append(f'<span class="meta-chip">🔥 最高热度 <b>{_fmt_heat(hv)}</b></span>')
-    chips.append(f'<span class="meta-chip">🏷️ {html.escape(str(board_label))}</span>')
+    tss = [r["ts"] for k, r in results.items() if k in keys and r.get("ok")]
+    if tss:
+        chips.append(f'<span class="meta-chip">🕒 更新于 <b>{datetime.fromtimestamp(max(tss)).strftime("%H:%M:%S")}</b></span>')
+    chips.append(f'<span class="meta-chip">📊 已收录 <b>{n_items}</b> 条</span>')
+    chips.append(f'<span class="meta-chip">🛰 <b>{n_sources}</b> 个数据源</span>')
+    chips.append(f'<span class="meta-chip">🏷 {html.escape(view_label)}</span>')
     st.markdown('<div class="meta-row">' + "".join(chips) + "</div>", unsafe_allow_html=True)
 
-def _sample_df(topn):
-    return pd.DataFrame({
-        "排名": list(range(1, topn + 1)),
-        "词条": [f"示例热词{i+1}" for i in range(topn)],
-        "简介": ["" for _ in range(topn)],
-        "热度": [int(1e6 - i * 1000) for i in range(topn)],
-        "链接": ["" for _ in range(topn)],
-    })
 
-def render_hot_trends():
-    cols = st.columns([1.1, 1.4, 1.2])
-    with cols[0]:
-        topn = st.slider("显示数量", 10, 100, 30, 5)
-    with cols[1]:
-        board_label = st.radio("榜单", ["总榜", "小说", "电影", "电视剧"], horizontal=True, label_visibility="collapsed")
-    with cols[2]:
-        refresh = st.button("获取最新数据", type="primary", use_container_width=True)
+def _warn_states(results: dict, keys: list):
+    stale = [(k, r) for k, r in results.items() if k in keys and r.get("stale")]
+    samples = [k for k, r in results.items() if k in keys and r.get("sample")]
+    failed = [sources.SOURCES[k]["name"] for k in keys
+              if not results.get(k, {}).get("ok") or not results.get(k, {}).get("items")]
+    if stale:
+        names = "、".join(sources.SOURCES[k]["name"] for k, _ in stale)
+        ages = "、".join(_fmt_age(time.time() - r["ts"]) for _, r in stale)
+        st.warning(f"{names} 实时数据拉取失败，显示的是 {ages} 的缓存快照")
+    if samples:
+        st.info(f"{'、'.join(sources.SOURCES[k]['name'] for k in samples)} 暂时不可用，正在显示示例数据")
+    if failed:
+        st.caption(f"⚠️ 以下数据源暂时不可用：{'、'.join(failed)}")
 
-    board_map = {
-        "总榜": ["realtime", "all"],
-        "小说": ["novel", "fiction"],
-        "电影": ["movie", "film"],
-        "电视剧": ["teleplay", "tv", "tvplay", "tv_series"],
-    }
-    candidates = board_map.get(board_label, ["realtime"])
-    st.caption(f"数据源：top.baidu.com（{board_label}）")
 
-    if "hot_df" not in st.session_state:
-        st.session_state["hot_df"] = None
-        st.session_state["hot_ts"] = None
-        st.session_state["hot_key"] = None
+# ---------------------------------------------------------------- 分类视图（单源 / 全部混合流）
 
-    if st.session_state.get("use_sample") and st.session_state.get("hot_df") is None and not refresh:
-        sample = _sample_df(topn)
-        st.info("当前显示示例数据；点击“获取最新数据”可拉取实时数据")
-        render_hot_cards(sample, topn)
+def render_category(view_key: str, sub: str, topn: int, force: bool):
+    all_keys = _view_sources(view_key)
+    keys = all_keys if sub == "全部" else [k for k in all_keys if sources.SOURCES[k]["name"] == sub]
+    results = get_sources(keys, force=force)
+    _warn_states(results, keys)
+
+    if sub == "全部":  # 多源按名次轮播交错，形成「混合热流」
+        lists = [results[k]["items"] for k in keys if results.get(k, {}).get("ok")]
+        interleaved = []
+        for r in range(max((len(l) for l in lists), default=0)):
+            for lst in lists:
+                if r < len(lst):
+                    interleaved.append(lst[r])
+        shown = interleaved[:topn]
+        n_sources = len(lists)
+    else:
+        shown = (results.get(keys[0], {}).get("items") or [])[:topn] if keys else []
+        n_sources = 1 if shown else 0
+
+    render_meta_chips(results, keys, f"{KEY_LABELS[view_key]} · {sub}", len(shown), n_sources)
+
+    if not shown:
+        st.info("暂无数据，请点击「获取最新数据」或稍后再试")
         return
 
-    if refresh:
-        try:
-            df_new, _ = fetch_baidu_board_with_fallback(candidates)
-            if not df_new.empty:
-                st.session_state["hot_df"] = df_new
-                st.session_state["hot_ts"] = pd.Timestamp.now()
-                st.session_state["hot_key"] = board_label
-                st.success("已更新为最新数据")
-        except Exception:
-            st.error("拉取最新数据失败，请稍后再试或检查网络/代理")
+    max_heat = max((it.get("heat") or 0 for it in shown), default=0) or 1
+    for i, it in enumerate(shown, 1):
+        src_key = keys[0] if sub != "全部" else _find_source_key(results, it)
+        src_meta = sources.SOURCES.get(src_key) if src_key else None
+        pill_html = _pill(src_meta["color"], src_meta["name"]) if src_meta else ""
+        pill_html = f'<div class="pill-row">{pill_html}</div>' if pill_html else ""
+        word_html, desc_html = _word_desc_html(it)
+        heat = it.get("heat")
+        pct = int(max(4, min(100, round(heat / max_heat * 100)))) if heat else None
+        _card_shell(i, pill_html, word_html, desc_html, _tag_pills(it), _heat_html(heat, pct))
 
-    df_cached = st.session_state.get("hot_df")
-    # 如果切换了榜单且没有对应缓存，则拉取
-    if df_cached is None or st.session_state.get("hot_key") != board_label:
-        try:
-            df_cached, _ = fetch_baidu_board_with_fallback(candidates)
-            st.session_state["hot_df"] = df_cached
-            st.session_state["hot_ts"] = pd.Timestamp.now()
-            st.session_state["hot_key"] = board_label
-        except Exception:
-            sample = _sample_df(topn)
-            st.warning("实时数据暂不可用，已显示示例数据")
-            render_hot_cards(sample, topn)
-            return
 
-    if df_cached is None or df_cached.empty:
-        st.info("暂无数据")
+def _find_source_key(results: dict, item: dict) -> Optional[str]:
+    for k, res in results.items():
+        for it in res.get("items", []):
+            if it is item:
+                return k
+    return None
+
+
+# ---------------------------------------------------------------- 交叉榜视图
+
+def render_cross(topn: int, force: bool):
+    keys = _view_sources("cross")
+    results = get_sources(keys, force=force)
+    _warn_states(results, keys)
+
+    all_items = []
+    for k, res in results.items():
+        if res.get("ok"):
+            for it in res["items"]:
+                all_items.append({**it, "source": k, "source_name": sources.SOURCES[k]["name"]})
+
+    # 聚类较重，仅当输入快照变化时重算
+    sig = tuple(sorted((k, round(r["ts"], 2)) for k, r in results.items() if r.get("ok")))
+    if st.session_state.get("cross_sig") != sig:
+        st.session_state["cross_clusters"] = aggregate.build_clusters(all_items)
+        st.session_state["cross_sig"] = sig
+    clusters = st.session_state.get("cross_clusters") or []
+
+    ok_sources = len([k for k, r in results.items() if r.get("ok") and r.get("items")])
+    render_meta_chips(results, keys, "全网交叉榜", len(clusters), ok_sources)
+
+    if not clusters:
+        st.info("暂时没有发现跨源同热的焦点事件（各榜单可能还没对齐，稍后再试试）")
         return
 
-    render_meta_chips(df_cached, board_label)
-    render_hot_cards(df_cached, topn)
-    render_counter()
+    st.caption(f"以下 {min(len(clusters), topn)} 个话题正被 ≥{aggregate.MIN_CLUSTER} 个数据源同时关注，按命中源数量与热度排序")
+    shown = clusters[:topn]
+    max_heat = max((c["max_heat"] or 0 for c in shown), default=0)
+    name_to_key = {v["name"]: k for k, v in sources.SOURCES.items()}
+    for i, c in enumerate(shown, 1):
+        seen, pills = set(), []
+        for m_name, _m in c["members"]:
+            if m_name in seen:
+                continue
+            seen.add(m_name)
+            src_key = name_to_key.get(m_name)
+            if src_key:
+                pills.append(_pill(sources.SOURCES[src_key]["color"], m_name))
+        pill_html = f'<div class="pill-row">{"".join(pills)}</div>'
+        word_html, desc_html = _word_desc_html(c)
+        heat = c["max_heat"]
+        pct = int(max(4, min(100, round(heat / max_heat * 100)))) if heat and max_heat else None
+        num = (f'<span class="heat-num">⚡ {len(c["sources"])} 源 · 🔥 {_fmt_heat(heat)}</span>'
+               if heat else f'<span class="heat-num muted">⚡ {len(c["sources"])} 源</span>')
+        heat_html = (f'<div class="hot-heat">{num}'
+                     f'<div class="heat-bar"><div class="heat-fill" style="width:{pct}%"></div></div></div>'
+                     if pct else f'<div class="hot-heat">{num}</div>')
+        _card_shell(i, pill_html, word_html, desc_html, "", heat_html)
+
+
+# ---------------------------------------------------------------- 侧边栏
+
+def render_sidebar():
+    env_proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy") or ""
+    st.session_state.setdefault("use_sample", False)
+    st.session_state.setdefault("proxy_enabled", bool(env_proxy))
+    st.session_state.setdefault("proxy_url", env_proxy)
+    st.session_state.setdefault("sixty_base", "")
+
+    with st.sidebar:
+        st.header("⚙️ 设置")
+        st.checkbox("使用示例数据（无网络预览）", key="use_sample")
+        with st.expander("🌐 网络与数据接口", expanded=False):
+            st.caption("国内源经 60s API 聚合获取；百度源直连 top.baidu.com，海外网络通常需配置代理。")
+            st.text_input("60s API 实例（可选，留空用内置实例）",
+                          key="sixty_base", placeholder="https://your-instance.example.com")
+            st.checkbox("启用代理", key="proxy_enabled")
+            st.text_input("HTTPS 代理（示例：https://1.2.3.4:8080）", key="proxy_url")
+            st.checkbox("忽略 SSL 证书验证（拦截代理需开启）", key="insecure_ssl", value=False)
+            cols = st.columns(2)
+            with cols[0]:
+                test = st.button("测试连接")
+            with cols[1]:
+                auto = st.button("一键选代理")
+            if test:
+                ok = _probe_url("https://top.baidu.com/api/board?platform=pc&tab=realtime")
+                if ok:
+                    st.success("连接正常")
+                else:
+                    st.error("无法连接百度接口，可能需要代理或稍后重试")
+            if auto:
+                _auto_pick_proxy(env_proxy)
+
+        with st.expander("🩺 数据源诊断", expanded=False):
+            st.caption("并行探测全部数据源，检查可用性与耗时（不影响缓存）。")
+            if st.button("运行诊断"):
+                cfg = _cfg()
+                rows = []
+                with ThreadPoolExecutor(max_workers=6) as ex:
+                    futs = {ex.submit(_probe_source, k, cfg): k for k in sources.SOURCES}
+                    for fut in as_completed(futs):
+                        rows.append(fut.result())
+                order = {k: i for i, k in enumerate(sources.SOURCES)}
+                rows.sort(key=lambda r: order.get(r["源 key"], 99))
+                st.dataframe([{k: v for k, v in r.items() if k != "源 key"} for r in rows],
+                             width="stretch", hide_index=True)
+        st.caption("数据均来自各平台公开榜单，仅供个人学习与信息浏览。")
+
+
+def _probe_url(url: str) -> bool:
+    import requests
+    try:
+        r = sources.build_session(_cfg()).get(url, timeout=8)
+        return r.status_code < 400
+    except Exception:
+        return False
+
+
+def _probe_source(key: str, cfg: dict) -> dict:
+    meta = sources.SOURCES[key]
+    t0 = time.time()
+    try:
+        items = meta["fetch"](cfg)
+        status, count = "✅ 正常", len(items)
+    except Exception as e:
+        status, count = f"❌ {str(e)[:40]}", 0
+    return {"源": meta["name"], "分类": sources.CATEGORY_LABELS.get(meta["cat"], ""),
+            "状态": status, "条数": count, "耗时s": round(time.time() - t0, 2), "源 key": key}
+
+
+def _auto_pick_proxy(env_proxy: str):
+    import requests
+    candidates = ([env_proxy] if env_proxy else []) + [
+        "https://127.0.0.1:7890", "http://127.0.0.1:7890",
+        "socks5h://127.0.0.1:1080", "https://127.0.0.1:1080", "http://127.0.0.1:1080",
+        "http://127.0.0.1:8889", "http://127.0.0.1:8080",
+    ]
+    for proxy in [None] + candidates:  # 先试直连
+        try:
+            s = requests.Session()
+            s.headers.update({"User-Agent": sources.UA})
+            if proxy:
+                s.proxies.update({"http": proxy, "https": proxy})
+            r = s.get("https://top.baidu.com/api/board?platform=pc&tab=realtime", timeout=8)
+            if r.status_code == 200 and "data" in r.text:
+                if proxy:
+                    st.session_state["proxy_enabled"] = True
+                    st.session_state["proxy_url"] = proxy
+                    os.environ["HTTPS_PROXY"] = proxy
+                    os.environ["https_proxy"] = proxy
+                    st.success(f"已选择代理：{proxy}")
+                else:
+                    st.session_state["proxy_enabled"] = False
+                    st.session_state["proxy_url"] = ""
+                    st.success("直连可用，已关闭代理")
+                return
+        except Exception:
+            continue
+    st.error("未找到可用代理，请手动填写再试")
+
+
+# ---------------------------------------------------------------- 页面骨架
+
+def render_hero():
+    n = len(sources.SOURCES)
+    st.markdown(
+        f"""
+        <div class="hero">
+          <div class="hero-badge"><span class="live-dot"></span>LIVE · {n} 源实时聚合</div>
+          <h1 class="hero-title"><span class="flame">🔥</span>全网<span class="grad">热搜雷达</span></h1>
+          <p class="hero-sub">国内热点 · 国际大事 · 科技动态 —— 一页看清全网正在发生的事</p>
+          <div class="hero-rule"></div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
 
 def render_author_badge():
     st.markdown(
@@ -674,38 +430,23 @@ def render_author_badge():
         </div>
         <style>
         .author-badge{
-          position: fixed;
-          left: 16px;
-          bottom: 16px;
+          position: fixed; left: 16px; bottom: 16px;
           background: rgba(20,22,32,0.78);
           border: 1px solid rgba(255,255,255,0.10);
-          color: #c9cdd9;
-          padding: 9px 15px;
-          border-radius: 999px;
-          font-size: 12.5px;
-          z-index: 9999;
-          box-shadow: 0 10px 28px rgba(0,0,0,0.4);
-          backdrop-filter: blur(10px);
+          color: #c9cdd9; padding: 9px 15px; border-radius: 999px;
+          font-size: 12.5px; z-index: 9999;
+          box-shadow: 0 10px 28px rgba(0,0,0,0.4); backdrop-filter: blur(10px);
         }
-        .author-badge a{
-          color: #ffb37e;
-          text-decoration: none;
-        }
-        .author-badge a:hover{
-          text-decoration: underline;
-        }
+        .author-badge a{ color: #ffb37e; text-decoration: none; }
+        .author-badge a:hover{ text-decoration: underline; }
         @media (max-width: 640px){
-          .author-badge{
-            left: 8px;
-            bottom: 8px;
-            font-size: 12px;
-            padding: 6px 12px;
-          }
+          .author-badge{ left: 8px; bottom: 8px; font-size: 12px; padding: 6px 12px; }
         }
         </style>
         """,
         unsafe_allow_html=True,
     )
+
 
 def render_counter():
     components.html(
@@ -720,12 +461,35 @@ def render_counter():
                 独立访客: <span id="busuanzi_value_site_uv" style="font-weight:bold; color:#ff9a3c;"></span> 人
             </span>
         </div>
+        <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
         """,
         height=50,
     )
 
-apply_theme()
-render_sidebar()
-render_hero()
-render_hot_trends()
-render_author_badge()
+
+def main():
+    apply_theme()
+    render_sidebar()
+    render_hero()
+
+    cols = st.columns([0.85, 2.05, 1.0])
+    with cols[0]:
+        topn = st.slider("显示数量", 10, 50, 30, 5)
+    with cols[1]:
+        view_label = st.radio("视图", VIEW_LABELS, horizontal=True, label_visibility="collapsed")
+    with cols[2]:
+        refresh = st.button("🔄 获取最新数据", type="primary", use_container_width=True)
+
+    view_key = VIEW_KEYS[view_label]
+    if view_key == "cross":
+        render_cross(topn, refresh)
+    else:
+        names = [sources.SOURCES[k]["name"] for k in _view_sources(view_key)]
+        sub = st.radio("数据源", ["全部"] + names, horizontal=True, label_visibility="collapsed")
+        render_category(view_key, sub, topn, refresh)
+
+    render_author_badge()
+    render_counter()
+
+
+main()

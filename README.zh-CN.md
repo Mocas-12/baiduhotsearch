@@ -1,10 +1,10 @@
 <div align="center">
 
-<img src="./logo.svg" width="96" alt="Baidu Hot Search Logo" />
+<img src="./logo.svg" width="96" alt="Hot Search Radar Logo" />
 
-# 🔥 中国热搜（百度）
+# 🔥 全网热搜雷达 (Hot Search Radar)
 
-**实时百度热搜榜 Streamlit 看板 —— 总榜 · 小说 · 电影 · 电视剧，一键刷新**
+**国内热点 · 国际大事 · 科技动态 —— 12 个数据源实时聚合，一页看清全网正在发生的事**
 
 [![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org)
 [![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io)
@@ -12,9 +12,7 @@
 
 **[🌐 在线看板（Streamlit Cloud）](https://baiduhotsearch-d9ysnhxbkzeskrnd5apnn5.streamlit.app/)**
 
-[English](./README.md) | **简体中文**
-
-*打开页面 → 查看实时热搜 → 切换榜单 → 一键刷新*
+*前身「中国热搜（百度）」—— 单一百度榜单的看板已升级为多源聚合雷达*
 
 </div>
 
@@ -22,162 +20,98 @@
 
 ## 📖 目录
 
+- [它解决什么问题](#-它解决什么问题)
 - [功能特性](#-功能特性)
+- [数据源](#-数据源)
 - [工作原理](#-工作原理)
-- [使用指南](#-使用指南)
 - [项目结构](#-项目结构)
 - [快速开始](#-快速开始)
-- [发布到线上](#-发布到线上)
-- [自定义与二开](#-自定义与二开)
+- [配置说明](#-配置说明)
 - [常见问题](#-常见问题)
-- [许可证](#-许可证)
+- [License](#-license)
+
+## 🎯 它解决什么问题
+
+刷一个榜单只能看到一个平台的热点，而且百度榜单偏娱乐。本项目把**国内生活热点**（微博 / 知乎 / 抖音 / 头条 / 百度 / B站）、**国际新闻**（Google News 中文 / 纽约时报中文网 / 60秒读世界）和**科技圈动态**（Hacker News / GitHub Trending / V2EX）聚合到一个页面，并用算法把「同一件事被多个平台同时关注」的话题识别出来——**多个源同时命中，基本就是当下真正的大事**。
 
 ## ✨ 功能特性
 
-- 🔥 **实时热搜榜**：拉取 top.baidu.com 实时榜单并展示
-- 🗂️ **榜单切换**：总榜 / 小说 / 电影 / 电视剧
-- 🔄 **获取最新数据**：一键刷新当前榜单
-- ⚡ **首屏秒开**：优先使用缓存或示例数据，避免空白等待
-- 🧰 **侧边栏设置**：代理、忽略 SSL 校验、连接测试、一键诊断/连接、示例数据切换
-- 🎨 **UI 风格**：暗夜火焰主题 —— 玻璃质感卡片、火焰渐变点缀、TOP3 奖牌徽章、热度条、LIVE 脉冲光效、全局圆角胶囊组件与中文化菜单
+- 🌐 **交叉榜（核心亮点）**：标题相似度聚类，把 ≥2 个数据源同时关注的同一事件聚成一簇，按命中源数量与热度排序——一眼分辨「平台小事」和「全网大事」
+- 🗂️ **三大分类视图**：🇨🇳 国内 / 🌍 国际 / 💻 科技，支持看单一源或全部源的「混合热流」（按名次轮播交错）
+- 🆕 **新上榜 / 在榜时长**：SQLite 记录历史快照，自动标记首次出现的话题与已上榜时长
+- 🛡️ **三层降级，永不白屏**：实时数据 → 15 分钟缓存快照（明确提示数据时点）→ 示例数据
+- 🩺 **数据源诊断面板**：并行探测全部 12 个源，展示每个源的可用性、条数与耗时
+- ⚖️ **限流友好**：每源独立缓存 + 失败短缓存 + 对聚合接口错峰请求与 429 退避
+- 🎨 **暗色「余烬」主题**：玻璃卡片、火焰渐变、TOP-3 奖牌徽章、热度条、LIVE 呼吸灯、源品牌色徽章
+
+## 📡 数据源
+
+| 分类 | 数据源 | 接入方式 |
+|---|---|---|
+| 🇨🇳 国内 | 微博热搜 / 知乎热榜 / 抖音热点 / 今日头条 / B站热榜 | [60s API](https://github.com/vikiboss/60s) 聚合（官方 + 社区双实例容灾） |
+| 🇨🇳 国内 | 百度热搜 | 直连 top.baidu.com（支持代理） |
+| 🌍 国际 | Google News 中文 / 纽约时报中文网 | RSS（标准库解析，零依赖） |
+| 🌍 国际 | 60秒读世界 | 60s API |
+| 💻 科技 | Hacker News | 官方 Algolia API |
+| 💻 科技 | GitHub Trending | 页面解析 |
+| 💻 科技 | V2EX 热帖 | 官方开放 API |
 
 ## 🧠 工作原理
 
 ```mermaid
 flowchart LR
-    A[🌐 top.baidu.com<br/>实时榜单] --> B[📥 抓取与解析<br/>requests · pandas]
-    B --> C[💾 缓存 / 示例数据回退<br/>首屏秒开]
-    C --> D[📊 Streamlit 渲染<br/>榜单切换 · 一键刷新]
-    D --> E[⚙️ 侧边栏网络设置<br/>代理 · SSL · 诊断]
+    A[12 个数据源<br/>60s API · RSS · 开放接口] --> B[并行抓取 sources.py<br/>统一 schema]
+    B --> C[每源缓存 15min<br/>失败降级 快照/示例]
+    B --> D[SQLite 历史快照 store.py<br/>新上榜 · 在榜时长]
+    B --> E[标题聚类 aggregate.py<br/>交叉榜]
+    C --> F[Streamlit 渲染<br/>分类视图 · 混合热流 · 源徽章]
+    D --> F
+    E --> F
 ```
-
-1. **抓取**：通过 `fetch_baidu_board(tab)` 拉取 top.baidu.com 对应榜单并解析为表格数据
-2. **回退**：优先使用缓存或示例数据渲染，保证首屏秒开；网络可用时点击「获取最新数据」刷新为实时数据
-3. **网络设置**：侧边栏支持启用代理（http/https/socks5h）、忽略 SSL 证书验证、测试连接与一键诊断/连接
-4. **展示**：Streamlit 以动画卡片渲染榜单（奖牌徽章 + 热度条），支持总榜 / 小说 / 电影 / 电视剧切换与中文化菜单
-
-## 📖 使用指南
-
-- 页面顶部显示当前榜单数据。右侧提供「获取最新数据」按钮，点击立即刷新。
-- 通过页面右上方的榜单切换（总榜 / 小说 / 电影 / 电视剧）查看不同榜单。
-- 左侧栏（默认折叠，可点击展开）提供：
-  - 启用代理、填写代理地址（支持 http/https/socks5h）
-  - 忽略 SSL 证书验证（某些拦截代理需要）
-  - 测试连接 / 一键诊断 / 一键连接（尝试自动选择可用代理）
-  - 使用示例数据（网络不可用时也能查看界面效果）
 
 ## 📁 项目结构
 
-```text
-baiduhotsearch/
-├── app.py               # Streamlit 主应用：榜单抓取 / 渲染 / 侧边栏设置 / 主题注入
-├── logo.svg             # 项目 Logo
-├── docs/
-│   └── index.html       # GitHub Pages 跳转页（重定向到 Streamlit Cloud）
-└── .streamlit/          # Streamlit 配置（config.toml 暗色主题）
+```
+├── app.py          # 页面骨架：视图导航、缓存编排、降级策略、卡片渲染
+├── sources.py      # 数据源注册表与抓取器（统一 schema，不依赖 streamlit）
+├── aggregate.py    # 跨源交叉榜：标题归一化 + 相似度聚类
+├── store.py        # SQLite 历史快照（新上榜 / 在榜时长）
+├── styles.py       # 主题 CSS 与组件样式
+└── logo.svg
 ```
 
 ## 🚀 快速开始
 
 ```bash
-git clone https://github.com/Mocas-12/baiduhotsearch.git
-cd baiduhotsearch
-pip install -U streamlit pandas requests
+pip install -r requirements.txt
 streamlit run app.py
 ```
 
-> 终端会显示访问地址（例如 http://localhost:8501 ），浏览器打开即可查看。环境要求：Python 3.9+（推荐 3.10/3.11）。
+## ⚙️ 配置说明
 
-| 命令 | 说明 |
-| --- | --- |
-| `pip install -U streamlit pandas requests` | 安装依赖 |
-| `streamlit run app.py` | 启动应用 |
+全部配置在侧边栏，无需改代码：
 
-## 🌐 发布到线上
-
-> 说明：GitHub Pages 只支持静态站点，无法直接运行 Python/Streamlit。建议采用「应用部署 + Pages 展示」的方式。
-
-### 方案 A：Streamlit Community Cloud（推荐，免费）
-
-1. 将本仓库推送到 GitHub。
-2. 打开 https://share.streamlit.io/ ，连接你的 GitHub 仓库，选择 `app.py` 作为入口。
-3. 部署完成后，会获得一个公开 URL（形如 `https://<your-app>.streamlit.app`）。
-4. 在 GitHub Pages 用一个静态页面跳转或内嵌该 URL：
-   - 跳转页（推荐，兼容性好）：在仓库新建 `docs/index.html` 内容如下，将 `EXTERNAL_URL` 替换为你的线上地址。
-
-     ```html
-     <!doctype html>
-     <meta charset="utf-8">
-     <meta http-equiv="refresh" content="0; url=EXTERNAL_URL">
-     <title>跳转中...</title>
-     <a href="EXTERNAL_URL">如果未自动跳转，请点击这里访问应用</a>
-     ```
-
-   - 或者尝试 iframe（某些宿主可能限制内嵌）：
-
-     ```html
-     <!doctype html>
-     <meta charset="utf-8">
-     <style>html,body,iframe{height:100%;width:100%;margin:0;border:0;}</style>
-     <iframe src="EXTERNAL_URL"></iframe>
-     ```
-
-5. 在 GitHub 仓库设置 → Pages 中，将 Source 设置为 `Deploy from a branch`，选择 `main` 分支的 `/docs` 目录。
-
-### 方案 B：自建或第三方平台部署（Railway/Render/Fly.io/Docker 等）
-
-1. 服务器或平台部署：
-
-   ```bash
-   pip install -U streamlit pandas requests
-   streamlit run app.py --server.address 0.0.0.0 --server.port 80
-   ```
-
-   或使用 Docker（可自行添加 Dockerfile）：
-
-   ```dockerfile
-   FROM python:3.11-slim
-   WORKDIR /app
-   COPY . .
-   RUN pip install -U streamlit pandas requests
-   EXPOSE 8501
-   CMD ["streamlit","run","app.py","--server.address","0.0.0.0","--server.port","8501"]
-   ```
-
-2. 获取公网可访问的 URL 后，按上面 GitHub Pages 的跳转/嵌入方式进行配置。
-
-## 🛠️ 自定义与二开
-
-- 配色与样式：`app.py` 中的 `apply_theme()` 注入了 CSS/JS，可按需修改阴影、圆角等；原生控件配色跟随 `.streamlit/config.toml`。
-- 卡片内容：排名 / 词条 / 简介 / 热度由 `render_hot_cards()` 渲染，可按需增删展示字段（如简介行）。
-- 榜单类型：通过 `fetch_baidu_board(tab)` 拉取。当前支持映射为「总榜、小说、电影、电视剧」，可在 `board_map` 增加更多候选。
+- **60s API 实例**：默认使用内置的官方 + 社区实例并自动容灾；公共实例限流较严，可填入[自部署实例](https://github.com/vikiboss/60s)地址（支持 Docker / Node，一键部署到 Vercel / Zeabur）
+- **代理**：百度源直连 top.baidu.com，海外网络通常需配置 HTTPS 代理；提供「测试连接 / 一键选代理」
+- **示例数据**：断网也可预览完整界面
 
 ## ❓ 常见问题
 
-<details>
-<summary><b>首次打开显示的是实时数据吗？</b></summary>
+**某个源显示「暂时不可用」？**
+多为公共实例限流或上游故障，5 分钟内会自动重试恢复；持续失败可在诊断面板确认，或换自部署 60s API 实例。
 
-- 为保证首屏观感，应用会优先显示缓存或示例数据；点击「获取最新数据」即可刷新为实时数据
-</details>
+**历史数据（新上榜标记）会一直保留吗？**
+Streamlit Cloud 的文件系统随应用重建而清空，历史只在本实例生命周期内累积；自部署挂载持久卷可长期保留（默认保留 7 天）。
 
-<details>
-<summary><b>连接失败怎么办？</b></summary>
+**热度数字为什么不能跨源比较？**
+各平台热度口径不同，热度条只在当前视图内做相对展示；交叉榜的排序依据首先是命中源数量。
 
-- 检查本机网络；如需代理，在侧栏启用并填写代理地址（如 `http://127.0.0.1:7890`）
-- 可尝试勾选「忽略 SSL 证书验证」
-- 使用「一键诊断/一键连接」快速定位并选择可用连接方式
-</details>
+## 👤 作者
 
-## 📄 许可证
+**Unlimited Box** · [a18577y@gmail.com](mailto:a18577y@gmail.com)
 
-- 个人/内部使用自由。若公开部署，请遵循数据源站点的使用规范与爬取边界，避免高频请求。
+数据均来自各平台公开榜单，仅供个人学习与信息浏览。
 
----
+## 📄 License
 
-<div align="center">
-
-**Made with 💙**
-
-🌐 [在线看板](https://baiduhotsearch-d9ysnhxbkzeskrnd5apnn5.streamlit.app/) · 🐛 [问题反馈](https://github.com/Mocas-12/baiduhotsearch/issues)
-
-</div>
+MIT
