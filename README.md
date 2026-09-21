@@ -105,6 +105,7 @@ streamlit run app.py
 Everything lives in the sidebar — no code changes needed:
 
 - **60s API instance**: built-in official + community instances with automatic failover; public instances are rate-limited, so you can point to your [self-hosted instance](https://github.com/vikiboss/60s) (Docker / Node, one-click to Vercel / Zeabur)
+- **Weibo Cookie**: paste it once (login weibo.com → F12 → copy the `SUB=...` from any request header) to go direct to Weibo's official API — works on cloud deploys too; otherwise via 60s API
 - **Proxy**: the Baidu source connects directly to top.baidu.com and usually needs an HTTPS proxy outside mainland China; "Test connection / auto-pick proxy" included
 - **Sample data**: preview the full UI with no network
 

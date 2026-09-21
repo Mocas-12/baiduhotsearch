@@ -103,6 +103,7 @@ streamlit run app.py
 全部配置在侧边栏，无需改代码：
 
 - **60s API 实例**：默认使用内置的官方 + 社区实例并自动容灾；公共实例限流较严，可填入[自部署实例](https://github.com/vikiboss/60s)地址（支持 Docker / Node，一键部署到 Vercel / Zeabur）
+- **微博 Cookie**：粘贴一次（登录 weibo.com → F12 → 任一请求头里的 `SUB=...`）即直连微博官方接口，云端部署也能用；不填则走 60s API
 - **代理**：百度源直连 top.baidu.com，海外网络通常需配置 HTTPS 代理；提供「测试连接 / 一键选代理」
 - **示例数据**：断网也可预览完整界面
 
