@@ -165,6 +165,32 @@ def _heat_html(heat, pct: Optional[int]) -> str:
     return f'<div class="hot-heat">{num}{bar}</div>'
 
 
+def _time_html(ts: float) -> str:
+    """新闻源没有平台热度，热度列展示发布时间 + 新鲜度条（24h 内线性衰减）。"""
+    age_h = max(0.0, (time.time() - ts) / 3600)
+    if age_h < 0.05:
+        label = "刚刚"
+    elif age_h < 1:
+        label = f"{int(age_h * 60)} 分钟前"
+    elif age_h < 24:
+        label = f"{age_h:.0f} 小时前"
+    else:
+        label = f"{age_h / 24:.0f} 天前"
+    pct = int(max(4, min(100, 100 * (1 - min(age_h, 24) / 24))))
+    num = f'<span class="heat-num">🕒 {label}</span>'
+    bar = f'<div class="heat-bar"><div class="heat-fill" style="width:{pct}%"></div></div>'
+    return f'<div class="hot-heat">{num}{bar}</div>'
+
+
+def _item_heat_html(item: dict, ref: float) -> str:
+    heat = item.get("heat")
+    if heat and ref:
+        return _heat_html(heat, int(max(4, min(100, round(heat / ref * 100)))))
+    if item.get("time"):
+        return _time_html(item["time"])
+    return _heat_html(None, None)
+
+
 def _tag_pills(item: dict) -> str:
     fs = item.get("_first_seen")
     if fs is None:
@@ -264,13 +290,8 @@ def render_category(view_key: str, sub: str, topn: int, force: bool):
         pill_html = _pill(src_meta["color"], src_meta["name"]) if src_meta else ""
         pill_html = f'<div class="pill-row">{pill_html}</div>' if pill_html else ""
         word_html, desc_html = _word_desc_html(it)
-        heat = it.get("heat")
-        if heat:
-            ref = (src_max.get(src_key) or 0) if sub == "全部" else global_max
-            pct = int(max(4, min(100, round(heat / ref * 100)))) if ref else None
-        else:
-            pct = None
-        _card_shell(i, pill_html, word_html, desc_html, _tag_pills(it), _heat_html(heat, pct))
+        ref = (src_max.get(src_key) or 0) if sub == "全部" else global_max
+        _card_shell(i, pill_html, word_html, desc_html, _tag_pills(it), _item_heat_html(it, ref))
 
 
 def _find_source_key(results: dict, item: dict) -> Optional[str]:
@@ -332,12 +353,16 @@ def render_cross(topn: int, force: bool):
         pill_html = f'<div class="pill-row">{"".join(pills)}</div>'
         word_html, desc_html = _word_desc_html(c)
         heat = c["max_heat"]
-        pct = int(max(4, min(100, round(heat / max_heat * 100)))) if heat and max_heat else None
-        num = (f'<span class="heat-num">⚡ {len(c["sources"])} 源 · 🔥 {_fmt_heat(heat)}</span>'
-               if heat else f'<span class="heat-num muted">⚡ {len(c["sources"])} 源</span>')
-        heat_html = (f'<div class="hot-heat">{num}'
-                     f'<div class="heat-bar"><div class="heat-fill" style="width:{pct}%"></div></div></div>'
-                     if pct else f'<div class="hot-heat">{num}</div>')
+        if heat:
+            pct = int(max(4, min(100, round(heat / max_heat * 100)))) if max_heat else None
+            num = (f'<span class="heat-num">⚡ {len(c["sources"])} 源 · 🔥 {_fmt_heat(heat)}</span>')
+            heat_html = (f'<div class="hot-heat">{num}'
+                         f'<div class="heat-bar"><div class="heat-fill" style="width:{pct}%"></div></div></div>'
+                         if pct else f'<div class="hot-heat">{num}</div>')
+        elif c.get("newest"):  # 纯新闻簇没有热度，展示最新发布时间
+            heat_html = _time_html(c["newest"])
+        else:
+            heat_html = f'<div class="hot-heat"><span class="heat-num muted">⚡ {len(c["sources"])} 源</span></div>'
         _card_shell(i, pill_html, word_html, desc_html, "", heat_html)
 
 

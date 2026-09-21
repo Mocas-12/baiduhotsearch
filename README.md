@@ -118,7 +118,7 @@ Usually public-instance rate limiting or an upstream hiccup — it auto-retries 
 Streamlit Cloud wipes the filesystem on redeploy, so history only accumulates within one instance's lifetime. Self-host with a persistent volume to keep it long-term (7 days retained by default).
 
 **Why can't heat numbers be compared across sources?**
-Every platform scores heat differently; bars are relative within the current view. The cross-source board ranks by hit count first.
+Every platform scores heat differently; bars are relative within the current view. The cross-source board ranks by hit count first. World-news sources (Google News / NYT) have no platform heat metric — the heat column shows **publish time** instead (freshness bar decays over 24h).
 
 ## 👤 Author
 

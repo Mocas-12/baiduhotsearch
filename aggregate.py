@@ -50,6 +50,7 @@ def build_clusters(all_items: list, min_sources: int = MIN_CLUSTER) -> list:
                 "rank": it.get("rank", 99),
                 "sources": [it["source_name"]],
                 "max_heat": it.get("heat"),
+                "newest": it.get("time"),
                 "members": [(it["source_name"], it)],
             })
             continue
@@ -58,6 +59,8 @@ def build_clusters(all_items: list, min_sources: int = MIN_CLUSTER) -> list:
             hit["sources"].append(it["source_name"])
         if it.get("heat") and (hit["max_heat"] or 0) < it["heat"]:
             hit["max_heat"] = it["heat"]
+        if it.get("time") and (hit.get("newest") or 0) < it["time"]:
+            hit["newest"] = it["time"]
         # 用榜上排名更靠前的词条当代表（跨源时即取最显眼的提法）
         if it.get("rank", 99) < hit.get("rank", 99):
             hit["title"] = it.get("title", hit["title"])

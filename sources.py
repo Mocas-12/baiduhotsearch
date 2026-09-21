@@ -273,8 +273,8 @@ def fetch_baidu(cfg):
 
 # ---------------------------------------------------------------- 国际（RSS / 开放接口）
 
-def _parse_rss(text: str, max_items: int = 30):
-    """解析 RSS/Atom，返回 [(title, link, desc)]，CDATA 与命名空间均兼容。"""
+def _parse_rss(text: str, max_items: int = 30, with_time: bool = False):
+    """解析 RSS/Atom，返回 [(title, link, desc[, ts])]，CDATA 与命名空间均兼容。"""
     ns = {"atom": "http://www.w3.org/2005/Atom"}
     root = ET.fromstring(text.encode("utf-8"))  # 带 encoding 声明的 XML 必须传 bytes
     out = []
@@ -282,8 +282,9 @@ def _parse_rss(text: str, max_items: int = 30):
         title = (item.findtext("title") or "").strip()
         link = (item.findtext("link") or "").strip()
         desc = (item.findtext("description") or "").strip()
+        ts = _parse_rfc822(item.findtext("pubDate")) if with_time else None
         if title:
-            out.append((title, link, desc))
+            out.append((title, link, desc, ts) if with_time else (title, link, desc))
         if len(out) >= max_items:
             return out
     for entry in root.findall("atom:entry", ns) or root.iter("entry"):  # Atom
@@ -291,25 +292,39 @@ def _parse_rss(text: str, max_items: int = 30):
         link_el = entry.find("atom:link", ns)
         link = (link_el.get("href") if link_el is not None else "") or (entry.findtext("link") or "")
         desc = (entry.findtext("atom:summary", namespaces=ns) or entry.findtext("summary") or "").strip()
+        ts = (_parse_rfc822(entry.findtext("atom:updated", namespaces=ns))
+              or _parse_rfc822(entry.findtext("atom:published", namespaces=ns))) if with_time else None
         if title:
-            out.append((title, link.strip(), desc))
+            out.append((title, link.strip(), desc, ts) if with_time else (title, link.strip(), desc))
         if len(out) >= max_items:
             return out
     return out
 
 
+def _parse_rfc822(text: str):
+    """RFC 822 时间 → epoch 秒；解析失败返回 None。"""
+    if not text:
+        return None
+    try:
+        from email.utils import parsedate_to_datetime
+        return parsedate_to_datetime(text.strip()).timestamp()
+    except Exception:
+        return None
+
+
 def _rss_items(cfg, url, max_items=30, split_source_suffix=False):
     r = build_session(cfg).get(url, timeout=12)
     r.raise_for_status()
-    rows = _parse_rss(r.text, max_items)
+    rows = _parse_rss(r.text, max_items, with_time=True)
     items = []
-    for i, (title, link, desc) in enumerate(rows):
+    for i, row in enumerate(rows):
+        title, link, desc, ts = (list(row) + [None] * 4)[:4]
         if split_source_suffix:  # Google News 标题自带「 - 媒体名」后缀
             parts = title.rsplit(" - ", 1)
             if len(parts) == 2 and len(parts[1]) <= 20:
                 title, desc = parts[0].strip(), parts[1].strip()
         items.append({"rank": i + 1, "title": title, "url": link,
-                      "desc": desc, "heat": None})
+                      "desc": desc, "heat": None, "time": ts})
     return items
 
 
