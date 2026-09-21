@@ -9,6 +9,7 @@
 """
 import html
 import os
+import re
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
@@ -185,8 +186,9 @@ def _card_shell(rank: int, pill_html: str, word_html: str, desc_html: str,
 
 
 def _word_desc_html(item: dict):
-    word = str(item.get("title") or "未知词条")
-    desc = str(item.get("desc") or "").strip()
+    # 简介若含换行/空行，st.markdown 会按 Markdown 段落拆碎卡片 HTML，必须折叠成单行
+    word = re.sub(r"\s+", " ", str(item.get("title") or "未知词条")).strip()
+    desc = re.sub(r"\s+", " ", str(item.get("desc") or "")).strip()
     link = str(item.get("url") or "").strip()
     if link:
         word_html = (f'<a class="hot-word" href="{html.escape(link, quote=True)}" '
