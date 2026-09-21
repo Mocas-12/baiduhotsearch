@@ -323,6 +323,8 @@ def _rss_items(cfg, url, max_items=30, split_source_suffix=False):
             parts = title.rsplit(" - ", 1)
             if len(parts) == 2 and len(parts[1]) <= 20:
                 title, desc = parts[0].strip(), parts[1].strip()
+        # NYT 等源的 description 是 HTML 片段（<p><img...>），剥标签再压缩空白
+        desc = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", str(desc or ""))).strip()[:140]
         items.append({"rank": i + 1, "title": title, "url": link,
                       "desc": desc, "heat": None, "time": ts})
     return items
