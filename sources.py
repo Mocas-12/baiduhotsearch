@@ -12,6 +12,7 @@ import re
 import time
 import xml.etree.ElementTree as ET
 from typing import Callable, Optional
+from urllib.parse import quote
 
 import requests
 
@@ -94,12 +95,59 @@ def fetch_douyin(cfg):
     return _norm_items(_sixty_get(cfg, "douyin"))
 
 
+def _chain(*fns):
+    """多通道容灾：依次尝试，全部失败才抛最后一个异常。"""
+    def run(cfg):
+        last = None
+        for fn in fns:
+            try:
+                items = fn(cfg)
+                if items:
+                    return items
+            except Exception as e:
+                last = e
+        raise RuntimeError(f"所有通道失败（{last}）")
+    return run
+
+
+def _toutiao_direct(cfg):
+    r = build_session(cfg).get("https://www.toutiao.com/hot-event/hot-board/?origin=toutiao_pc",
+                               timeout=10)
+    r.raise_for_status()
+    items = []
+    for it in r.json().get("data") or []:
+        title = str(it.get("Title") or "").strip()
+        if not title:
+            continue
+        items.append({"rank": len(items) + 1, "title": title,
+                      "url": it.get("Url") or "", "desc": "",
+                      "heat": _to_heat(it.get("HotValue"))})
+    return items
+
+
+def _bilibili_direct(cfg):
+    r = build_session(cfg).get("https://app.bilibili.com/x/v2/search/trending/ranking",
+                               timeout=10)
+    r.raise_for_status()
+    lst = ((r.json().get("data") or {}).get("list")) or []
+    items = []
+    for it in lst:
+        kw = str(it.get("keyword") or it.get("show_name") or "").strip()
+        if not kw:
+            continue
+        items.append({"rank": it.get("position") or len(items) + 1, "title": kw,
+                      "url": f"https://search.bilibili.com/all?keyword={quote(kw)}",
+                      "desc": "", "heat": _to_heat(it.get("hot_score"))})
+    return items
+
+
 def fetch_toutiao(cfg):
-    return _norm_items(_sixty_get(cfg, "toutiao"))
+    # 直连官方接口优先（数据中心 IP 也能访问），60s API 兜底
+    return _chain(_toutiao_direct, lambda c: _norm_items(_sixty_get(c, "toutiao")))(cfg)
 
 
 def fetch_bilibili(cfg):
-    return _norm_items(_sixty_get(cfg, "bili"))
+    return _chain(_bilibili_direct, lambda c: _norm_items(_sixty_get(c, "bili")))(cfg)
 
 
 def fetch_zhihu(cfg):
