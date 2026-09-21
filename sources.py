@@ -88,11 +88,63 @@ def _to_heat(v):
 
 
 def fetch_weibo(cfg):
-    return _norm_items(_sixty_get(cfg, "weibo"))
+    # 配置了微博 Cookie 时直连官方接口（云端也能用），否则走 60s API
+    return _chain(_weibo_direct, lambda c: _norm_items(_sixty_get(c, "weibo")))(cfg)
+
+
+def _weibo_direct(cfg):
+    cookie = (cfg.get("weibo_cookie") or "").strip()
+    if not cookie:
+        raise RuntimeError("未配置微博 Cookie")
+    s = build_session(cfg)
+    s.headers.update({"Cookie": cookie, "Referer": "https://weibo.com/",
+                      "Accept": "application/json, text/plain, */*"})
+    r = s.get("https://weibo.com/ajax/side/hotSearch", timeout=10)
+    r.raise_for_status()
+    d = r.json()
+    realtime = (d.get("data") or {}).get("realtime") or []
+    if d.get("error") or not realtime:
+        raise RuntimeError("微博接口返回异常（Cookie 可能已过期）")
+    items = []
+    for it in realtime:
+        w = str(it.get("word") or "").strip()
+        if not w:
+            continue
+        items.append({"rank": len(items) + 1, "title": w,
+                      "url": f"https://s.weibo.com/weibo?q={quote(w)}",
+                      "desc": "", "heat": _to_heat(it.get("num"))})
+    return items
 
 
 def fetch_douyin(cfg):
-    return _norm_items(_sixty_get(cfg, "douyin"))
+    # ttwid 可自动注册（字节跳动设备标识），无需登录，数据中心 IP 也可用
+    return _chain(_douyin_direct, lambda c: _norm_items(_sixty_get(c, "douyin")))(cfg)
+
+
+def _douyin_direct(cfg):
+    s = build_session(cfg)
+    r = s.post("https://ttwid.bytedance.com/ttwid/union/register/",
+               json={"region": "cn", "aid": 1768, "needFid": False,
+                     "service": "www.ixigua.com",
+                     "migrate_info": {"ticket": "", "source": "node"},
+                     "cbUrlProtocol": "https", "union": True},
+               timeout=10)
+    r.raise_for_status()
+    if not s.cookies.get("ttwid"):
+        raise RuntimeError("ttwid 注册失败")
+    r2 = s.get("https://www.douyin.com/aweme/v1/web/hot/search/list/?source=6",
+               headers={"Referer": "https://www.douyin.com/"}, timeout=10)
+    r2.raise_for_status()
+    wl = ((r2.json().get("data") or {}).get("word_list")) or []
+    items = []
+    for it in wl:
+        w = str(it.get("word") or "").strip()
+        if not w:
+            continue
+        items.append({"rank": len(items) + 1, "title": w,
+                      "url": f"https://www.douyin.com/search/{quote(w)}",
+                      "desc": "", "heat": _to_heat(it.get("hot_value"))})
+    return items
 
 
 def _chain(*fns):

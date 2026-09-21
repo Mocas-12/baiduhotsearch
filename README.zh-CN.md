@@ -56,8 +56,9 @@
 
 | 分类 | 数据源 | 接入方式 |
 |---|---|---|
-| 🇨🇳 国内 | 今日头条 / B站热榜 | 直连官方接口，[60s API](https://github.com/vikiboss/60s) 兜底 |
-| 🇨🇳 国内 | 微博热搜 / 知乎热榜 / 抖音热点 | [60s API](https://github.com/vikiboss/60s) 聚合（官方 + 社区双实例容灾） |
+| 🇨🇳 国内 | 今日头条 / 抖音热点 / B站热榜 | 直连官方接口（抖音自动注册 ttwid），[60s API](https://github.com/vikiboss/60s) 兜底 |
+| 🇨🇳 国内 | 微博热搜 | 侧边栏填入微博 Cookie 后直连；否则走 60s API |
+| 🇨🇳 国内 | 知乎热榜 | [60s API](https://github.com/vikiboss/60s) 聚合 |
 | 🇨🇳 国内 | 百度热搜 | 直连 top.baidu.com（支持代理） |
 | 🌍 国际 | Google News 中文 / 纽约时报中文网 | RSS（标准库解析，零依赖） |
 | 🌍 国际 | 60秒读世界 | 60s API |
@@ -65,7 +66,7 @@
 | 💻 科技 | GitHub Trending | 页面解析 |
 | 💻 科技 | V2EX 热帖 | 官方开放 API |
 
-> 💡 60s API 公共实例对数据中心 IP（如 Streamlit Cloud、部分 VPS）限制较严，微博/知乎/抖音在云端部署可能持续不可用；头条与 B站已改为直连不受影响。需要完整国内源时，可在侧边栏填入自部署的 60s API 实例地址。
+> 💡 60s API 公共实例对数据中心 IP（如 Streamlit Cloud、部分 VPS）限制较严，知乎/60秒读世界在云端部署可能持续不可用；头条、抖音、B站、百度均为直连不受影响。微博直连只需在侧边栏粘贴一次 Cookie（登录 weibo.com → F12 → 请求头里的 `SUB=...`）。需要完整国内源时，可自部署 60s API 实例并填入侧边栏。
 
 ## 🧠 工作原理
 

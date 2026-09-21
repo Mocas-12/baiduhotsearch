@@ -51,6 +51,7 @@ def _cfg() -> dict:
         if st.session_state.get("proxy_enabled") else None,
         "insecure": bool(st.session_state.get("insecure_ssl")),
         "sixty_base": (st.session_state.get("sixty_base") or "").strip() or None,
+        "weibo_cookie": (st.session_state.get("weibo_cookie") or "").strip() or None,
     }
 
 
@@ -338,6 +339,7 @@ def render_sidebar():
     st.session_state.setdefault("proxy_enabled", bool(env_proxy))
     st.session_state.setdefault("proxy_url", env_proxy)
     st.session_state.setdefault("sixty_base", "")
+    st.session_state.setdefault("weibo_cookie", "")
 
     with st.sidebar:
         st.header("⚙️ 设置")
@@ -346,6 +348,10 @@ def render_sidebar():
             st.caption("国内源经 60s API 聚合获取；百度源直连 top.baidu.com，海外网络通常需配置代理。")
             st.text_input("60s API 实例（可选，留空用内置实例）",
                           key="sixty_base", placeholder="https://your-instance.example.com")
+            st.text_input("微博 Cookie（可选，填 SUB=... 后微博直连）",
+                          key="weibo_cookie",
+                          placeholder="登录 weibo.com 后从浏览器复制",
+                          type="password")
             st.checkbox("启用代理", key="proxy_enabled")
             st.text_input("HTTPS 代理（示例：https://1.2.3.4:8080）", key="proxy_url")
             st.checkbox("忽略 SSL 证书验证（拦截代理需开启）", key="insecure_ssl", value=False)
