@@ -20,6 +20,14 @@
 
 ---
 
+## 📸 Screenshots
+
+| 🌐 Cross-source board — same-event clustering | 🇨🇳 Domestic mixed stream — interleaved by rank |
+|:---:|:---:|
+| ![Cross-source board](./docs/screenshots/cross-board.png) | ![Domestic mixed stream](./docs/screenshots/domestic-mixed.png) |
+
+---
+
 ## 📖 Table of Contents
 
 - [Why](#-why)
