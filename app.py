@@ -309,11 +309,17 @@ def render_cross(topn: int, force: bool):
     results = get_sources(keys, force=force)
     _warn_states(results, keys)
 
+    # 各源内部的最大热度（统一口径用：词条的榜内相对位置 = heat / 源内最大值）
+    src_max = {k: max((it.get("heat") or 0 for it in r.get("items", [])), default=0)
+               for k, r in results.items()}
     all_items = []
     for k, res in results.items():
         if res.get("ok"):
             for it in res["items"]:
-                all_items.append({**it, "source": k, "source_name": sources.SOURCES[k]["name"]})
+                heat = it.get("heat") or 0
+                rel = heat / src_max[k] if heat and src_max.get(k) else 0.0
+                all_items.append({**it, "source": k, "source_name": sources.SOURCES[k]["name"],
+                                  "rel": round(rel, 4)})
 
     # 聚类较重，仅当输入快照变化时重算
     sig = tuple(sorted((k, round(r["ts"], 2)) for k, r in results.items() if r.get("ok")))
@@ -323,7 +329,7 @@ def render_cross(topn: int, force: bool):
     clusters = st.session_state.get("cross_clusters") or []
 
     ok_sources = len([k for k, r in results.items() if r.get("ok") and r.get("items")])
-    render_meta_chips(results, keys, "全网交叉榜", len(clusters), ok_sources, item_label="⚡ 交叉话题")
+    render_meta_chips(results, keys, "全网交叉榜", len(clusters), ok_sources)
 
     if not clusters:
         down = [sources.SOURCES[k]["name"] for k in keys
@@ -337,9 +343,11 @@ def render_cross(topn: int, force: bool):
             st.info("暂时没有发现跨源同热的焦点事件（各榜单可能还没对齐，稍后再试试）")
         return
 
-    st.caption(f"以下 {min(len(clusters), topn)} 个话题正被 ≥{aggregate.MIN_CLUSTER} 个数据源同时关注，按命中源数量与热度排序")
+    st.caption(f"以下 {min(len(clusters), topn)} 个话题正被 ≥{aggregate.MIN_CLUSTER} 个数据源同时关注，"
+               f"按命中源数量与综合热度排序。综合热度为统一口径（各源榜内相对位置 × 源数，满分 100），"
+               f"各平台的原始热度单位不同，不可直接跨源比较")
     shown = clusters[:topn]
-    max_heat = max((c["max_heat"] or 0 for c in shown), default=0)
+    max_comp = max(c.get("composite", 0) for c in shown) or 1
     name_to_key = {v["name"]: k for k, v in sources.SOURCES.items()}
     for i, c in enumerate(shown, 1):
         seen, pills = set(), []
@@ -352,17 +360,11 @@ def render_cross(topn: int, force: bool):
                 pills.append(_pill(sources.SOURCES[src_key]["color"], m_name))
         pill_html = f'<div class="pill-row">{"".join(pills)}</div>'
         word_html, desc_html = _word_desc_html(c)
-        heat = c["max_heat"]
-        if heat:
-            pct = int(max(4, min(100, round(heat / max_heat * 100)))) if max_heat else None
-            num = (f'<span class="heat-num">⚡ {len(c["sources"])} 源 · 🔥 {_fmt_heat(heat)}</span>')
-            heat_html = (f'<div class="hot-heat">{num}'
-                         f'<div class="heat-bar"><div class="heat-fill" style="width:{pct}%"></div></div></div>'
-                         if pct else f'<div class="hot-heat">{num}</div>')
-        elif c.get("newest"):  # 纯新闻簇没有热度，展示最新发布时间
-            heat_html = _time_html(c["newest"])
-        else:
-            heat_html = f'<div class="hot-heat"><span class="heat-num muted">⚡ {len(c["sources"])} 源</span></div>'
+        comp = int(round(c.get("composite", 0) / max_comp * 100))
+        comp = max(4, comp)
+        num = f'<span class="heat-num">⚡ {len(c["sources"])} 源 · 🔥 {comp}</span>'
+        heat_html = (f'<div class="hot-heat">{num}'
+                     f'<div class="heat-bar"><div class="heat-fill" style="width:{comp}%"></div></div></div>')
         _card_shell(i, pill_html, word_html, desc_html, "", heat_html)
 
 

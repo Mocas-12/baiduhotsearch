@@ -27,15 +27,19 @@ def _similar(a: str, b: str) -> bool:
 
 
 def build_clusters(all_items: list, min_sources: int = MIN_CLUSTER) -> list:
-    """all_items: [{"source": 源key, "source_name": 展示名, ...统一schema}, ...]
+    """all_items: [{"source": 源key, "source_name": 展示名, "rel": 榜内相对热度0-1, ...}, ...]
 
     返回簇列表，每簇：
     {"title", "url", "desc", "sources": [源名...], "n_sources": int,
-     "max_heat": float|None, "members": [(源名, 词条)]}
+     "strength": 榜内相对热度最强值(0-1), "max_heat": 原始最大热度,
+     "members": [(源名, 词条)]}
+    排序：命中源数优先，同源数下按 strength；composite = 源数 + strength
+    是与该字典序完全一致的单一标量，可直接用于展示（保证第一名 ≥ 第二名）。
     """
     clusters = []
     for it in all_items:
         norm = normalize_title(it.get("title", ""))
+        rel = it.get("rel") or 0.0
         hit = None
         for c in clusters:
             if _similar(norm, c["norm"]):
@@ -49,6 +53,7 @@ def build_clusters(all_items: list, min_sources: int = MIN_CLUSTER) -> list:
                 "desc": it.get("desc", ""),
                 "rank": it.get("rank", 99),
                 "sources": [it["source_name"]],
+                "strength": rel,
                 "max_heat": it.get("heat"),
                 "newest": it.get("time"),
                 "members": [(it["source_name"], it)],
@@ -57,6 +62,8 @@ def build_clusters(all_items: list, min_sources: int = MIN_CLUSTER) -> list:
         hit["members"].append((it["source_name"], it))
         if it["source_name"] not in hit["sources"]:
             hit["sources"].append(it["source_name"])
+        if rel > hit["strength"]:
+            hit["strength"] = rel
         if it.get("heat") and (hit["max_heat"] or 0) < it["heat"]:
             hit["max_heat"] = it["heat"]
         if it.get("time") and (hit.get("newest") or 0) < it["time"]:
@@ -71,5 +78,8 @@ def build_clusters(all_items: list, min_sources: int = MIN_CLUSTER) -> list:
             hit["desc"] = it["desc"]
 
     cross = [c for c in clusters if len(c["sources"]) >= min_sources]
-    cross.sort(key=lambda c: (len(c["sources"]), c["max_heat"] or 0), reverse=True)
+    cross.sort(key=lambda c: (len(c["sources"]) + c["strength"], c["max_heat"] or 0),
+               reverse=True)
+    for c in cross:
+        c["composite"] = len(c["sources"]) + c["strength"]
     return cross
