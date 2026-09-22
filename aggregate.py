@@ -33,8 +33,8 @@ def build_clusters(all_items: list, min_sources: int = MIN_CLUSTER) -> list:
     {"title", "url", "desc", "sources": [源名...], "n_sources": int,
      "strength": 榜内相对热度最强值(0-1), "max_heat": 原始最大热度,
      "members": [(源名, 词条)]}
-    排序：命中源数优先，同源数下按 strength；composite = 源数 + strength
-    是与该字典序完全一致的单一标量，可直接用于展示（保证第一名 ≥ 第二名）。
+    排序：命中源数优先，同源数下按 strength（排序键 = 源数 + strength 的
+    单一标量，保证第一名 ≥ 第二名）。
     """
     clusters = []
     for it in all_items:
@@ -55,7 +55,6 @@ def build_clusters(all_items: list, min_sources: int = MIN_CLUSTER) -> list:
                 "sources": [it["source_name"]],
                 "strength": rel,
                 "max_heat": it.get("heat"),
-                "newest": it.get("time"),
                 "members": [(it["source_name"], it)],
             })
             continue
@@ -66,8 +65,6 @@ def build_clusters(all_items: list, min_sources: int = MIN_CLUSTER) -> list:
             hit["strength"] = rel
         if it.get("heat") and (hit["max_heat"] or 0) < it["heat"]:
             hit["max_heat"] = it["heat"]
-        if it.get("time") and (hit.get("newest") or 0) < it["time"]:
-            hit["newest"] = it["time"]
         # 用榜上排名更靠前的词条当代表（跨源时即取最显眼的提法）
         if it.get("rank", 99) < hit.get("rank", 99):
             hit["title"] = it.get("title", hit["title"])
@@ -80,6 +77,4 @@ def build_clusters(all_items: list, min_sources: int = MIN_CLUSTER) -> list:
     cross = [c for c in clusters if len(c["sources"]) >= min_sources]
     cross.sort(key=lambda c: (len(c["sources"]) + c["strength"], c["max_heat"] or 0),
                reverse=True)
-    for c in cross:
-        c["composite"] = len(c["sources"]) + c["strength"]
     return cross

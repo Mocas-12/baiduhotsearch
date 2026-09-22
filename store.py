@@ -44,19 +44,6 @@ def save_snapshot(source: str, items: list):
         conn.close()
 
 
-def first_seen(source: str, title: str):
-    """该词条在历史上的首次上榜时间；从未见过返回 None（即「新上榜」）。"""
-    row = sqlite3.connect(DB_PATH, timeout=10).execute(
-        "SELECT MIN(ts) FROM snapshots WHERE source=? AND title=?",
-        (source, title)).fetchone()
-    if not row or not row[0]:
-        return None
-    try:
-        return datetime.fromisoformat(row[0])
-    except ValueError:
-        return None
-
-
 def first_seen_many(source: str, titles: list) -> dict:
     """批量查询首次上榜时间，返回 {title: datetime|None}。
     必须在本批快照写入 save_snapshot() 之前调用，否则全部会被判为旧词条。"""
@@ -79,14 +66,6 @@ def first_seen_many(source: str, titles: list) -> dict:
         return marks
     finally:
         conn.close()
-
-
-def history_hours(source: str, title: str):
-    """已连续在榜的小时数（按首次可见时间估算）；新词条返回 None。"""
-    ts = first_seen(source, title)
-    if ts is None:
-        return None
-    return max(0.0, (datetime.now() - ts).total_seconds() / 3600)
 
 
 def last_snapshot(source: str, max_age_hours: float = 24):

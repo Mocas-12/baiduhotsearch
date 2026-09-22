@@ -97,7 +97,6 @@ def apply_theme():
         .meta-chip b{ color: #eef0f6; font-weight: 700; }
 
         /* ===== 热搜卡片 ===== */
-        .hot-list{ margin-top: 4px; }
         .hot-card{
           display: flex; align-items: flex-start; gap: 14px;
           padding: 14px 16px; border-radius: 18px;
@@ -141,24 +140,8 @@ def apply_theme():
           margin-top: 4px; color: var(--sub); font-size: 13px; line-height: 1.5;
           display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
         }
-        .hot-heat{ flex: 0 0 190px; text-align: right; }
-        .heat-num{
-          font-weight: 800; color: #ff9a3c; font-size: 14.5px;
-          font-variant-numeric: tabular-nums;
-        }
-        .heat-bar{
-          margin-top: 7px; height: 6px; border-radius: 99px;
-          background: rgba(255,255,255,0.08); overflow: hidden;
-        }
-        .heat-fill{
-          height: 100%; border-radius: 99px;
-          background: linear-gradient(90deg, #ff512f, #ff9a3c);
-          box-shadow: 0 0 10px rgba(255,120,40,0.5);
-          transition: width 0.6s ease;
-        }
         @media (max-width: 720px){
           .hot-card{ flex-wrap: wrap; }
-          .hot-heat{ flex: 1 1 100%; text-align: left; }
         }
 
         /* ===== 侧边栏 ===== */
@@ -286,9 +269,6 @@ def apply_theme():
           border-color: rgba(64,222,120,0.4);
           color: #6ff0a1;
         }
-        /* ===== 交叉榜 ===== */
-        .cross-note{ color: var(--sub); font-size: 13.5px; margin: 2px 0 14px; }
-        .heat-num.muted{ color: #8f96ab; }
         footer { visibility: hidden; }
         </style>
         <script>

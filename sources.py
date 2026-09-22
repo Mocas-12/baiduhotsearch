@@ -11,7 +11,6 @@ import random
 import re
 import time
 import xml.etree.ElementTree as ET
-from typing import Callable, Optional
 from urllib.parse import quote
 
 import requests

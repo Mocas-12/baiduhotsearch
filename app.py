@@ -158,13 +158,12 @@ def _tag_pills(item: dict) -> str:
     return f'<div class="pill-row"><span class="tag-badge">{label}</span></div>'
 
 
-def _card_shell(rank: int, pill_html: str, word_html: str, desc_html: str,
-                tail_html: str, heat_html: str):
+def _card_shell(rank: int, pill_html: str, word_html: str, desc_html: str, tail_html: str):
     st.markdown(
         f'<div class="hot-card{" top1" if rank == 1 else ""}" style="--i:{min(rank - 1, 25)}">'
         f'{_rank_badge(rank)}'
         f'<div class="hot-main">{pill_html}{word_html}{desc_html}{tail_html}</div>'
-        f'{heat_html}</div>',
+        f'</div>',
         unsafe_allow_html=True,
     )
 
@@ -243,7 +242,7 @@ def render_category(view_key: str, sub: str, topn: int, force: bool):
         pill_html = _pill(src_meta["color"], src_meta["name"]) if src_meta else ""
         pill_html = f'<div class="pill-row">{pill_html}</div>' if pill_html else ""
         word_html, desc_html = _word_desc_html(it)
-        _card_shell(i, pill_html, word_html, desc_html, _tag_pills(it), "")
+        _card_shell(i, pill_html, word_html, desc_html, _tag_pills(it))
 
 
 def _find_source_key(results: dict, item: dict) -> Optional[str]:
@@ -311,7 +310,7 @@ def render_cross(topn: int, force: bool):
         pills.append(f'<span class="tag-badge">⚡ {len(c["sources"])} 源命中</span>')
         pill_html = f'<div class="pill-row">{"".join(pills)}</div>'
         word_html, desc_html = _word_desc_html(c)
-        _card_shell(i, pill_html, word_html, desc_html, "", "")
+        _card_shell(i, pill_html, word_html, desc_html, "")
 
 
 # ---------------------------------------------------------------- 侧边栏
@@ -369,7 +368,6 @@ def render_sidebar():
 
 
 def _probe_url(url: str) -> bool:
-    import requests
     try:
         r = sources.build_session(_cfg()).get(url, timeout=8)
         return r.status_code < 400
