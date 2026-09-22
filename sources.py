@@ -316,8 +316,7 @@ def _rss_items(cfg, url, max_items=30, split_source_suffix=False):
     r.raise_for_status()
     rows = _parse_rss(r.text, max_items, with_time=True)
     items = []
-    for i, row in enumerate(rows):
-        title, link, desc, ts = (list(row) + [None] * 4)[:4]
+    for i, (title, link, desc, ts) in enumerate(rows):
         if split_source_suffix:  # Google News 标题自带「 - 媒体名」后缀
             parts = title.rsplit(" - ", 1)
             if len(parts) == 2 and len(parts[1]) <= 20:
