@@ -27,20 +27,12 @@ st.set_page_config(page_title="全网热搜雷达", layout="wide", initial_sideb
 
 CACHE_TTL = 900   # 成功结果缓存 15 分钟
 FAIL_TTL = 120    # 失败/降级/示例结果短缓存：避免重跑时反复冲击已限流的接口，同时保证 2 分钟内自动重试
-VIEW_LABELS = ["🌐 交叉榜", "🇨🇳 国内", "🌍 国际", "💻 科技"]
-VIEW_KEYS = {"🌐 交叉榜": "cross", "🇨🇳 国内": "domestic", "🌍 国际": "world", "💻 科技": "tech"}
+VIEW_LABELS = ["交叉榜", "国内", "国际", "科技"]
+VIEW_KEYS = {"交叉榜": "cross", "国内": "domestic", "国际": "world", "科技": "tech"}
 KEY_LABELS = {v: k for k, v in VIEW_KEYS.items()}
 
 
 # ---------------------------------------------------------------- 基础工具
-
-def _fmt_heat(v):
-    try:
-        return f"{int(v):,}"
-    except (TypeError, ValueError):
-        s = str(v) if v is not None else ""
-        return s if s else "—"
-
 
 def _fmt_age(sec: float) -> str:
     return f"{int(sec // 60)} 分钟前" if sec < 3600 else f"{sec / 3600:.1f} 小时前"
@@ -157,40 +149,6 @@ def _rank_badge(rank: int) -> str:
     return f'<div class="{cls}">{rank}</div>'
 
 
-def _heat_html(heat, pct: Optional[int]) -> str:
-    num = f'<span class="heat-num">🔥 {_fmt_heat(heat)}</span>'
-    if pct is None:
-        return f'<div class="hot-heat">{num}</div>'
-    bar = f'<div class="heat-bar"><div class="heat-fill" style="width:{pct}%"></div></div>'
-    return f'<div class="hot-heat">{num}{bar}</div>'
-
-
-def _time_html(ts: float) -> str:
-    """新闻源没有平台热度，热度列展示发布时间 + 新鲜度条（24h 内线性衰减）。"""
-    age_h = max(0.0, (time.time() - ts) / 3600)
-    if age_h < 0.05:
-        label = "刚刚"
-    elif age_h < 1:
-        label = f"{int(age_h * 60)} 分钟前"
-    elif age_h < 24:
-        label = f"{age_h:.0f} 小时前"
-    else:
-        label = f"{age_h / 24:.0f} 天前"
-    pct = int(max(4, min(100, 100 * (1 - min(age_h, 24) / 24))))
-    num = f'<span class="heat-num">🕒 {label}</span>'
-    bar = f'<div class="heat-bar"><div class="heat-fill" style="width:{pct}%"></div></div>'
-    return f'<div class="hot-heat">{num}{bar}</div>'
-
-
-def _item_heat_html(item: dict, ref: float) -> str:
-    heat = item.get("heat")
-    if heat and ref:
-        return _heat_html(heat, int(max(4, min(100, round(heat / ref * 100)))))
-    if item.get("time"):
-        return _time_html(item["time"])
-    return _heat_html(None, None)
-
-
 def _tag_pills(item: dict) -> str:
     fs = item.get("_first_seen")
     if fs is None:
@@ -261,11 +219,7 @@ def render_category(view_key: str, sub: str, topn: int, force: bool):
     _warn_states(results, keys)
 
     if sub == "全部":  # 多源按名次轮播交错，形成「混合热流」
-        ok_keys = [k for k in keys if results.get(k, {}).get("ok")]
-        lists = [results[k]["items"] for k in ok_keys]
-        # 各平台热度口径不同，混合流里热度条按各自榜单内的相对位置归一
-        src_max = {k: max((it.get("heat") or 0 for it in lst), default=0)
-                   for k, lst in zip(ok_keys, lists)}
+        lists = [results[k]["items"] for k in keys if results.get(k, {}).get("ok")]
         interleaved = []
         for r in range(max((len(l) for l in lists), default=0)):
             for lst in lists:
@@ -283,15 +237,13 @@ def render_category(view_key: str, sub: str, topn: int, force: bool):
         st.info("暂无数据，请点击「获取最新数据」或稍后再试")
         return
 
-    global_max = max((it.get("heat") or 0 for it in shown), default=0) or 1
     for i, it in enumerate(shown, 1):
         src_key = keys[0] if sub != "全部" else _find_source_key(results, it)
         src_meta = sources.SOURCES.get(src_key) if src_key else None
         pill_html = _pill(src_meta["color"], src_meta["name"]) if src_meta else ""
         pill_html = f'<div class="pill-row">{pill_html}</div>' if pill_html else ""
         word_html, desc_html = _word_desc_html(it)
-        ref = (src_max.get(src_key) or 0) if sub == "全部" else global_max
-        _card_shell(i, pill_html, word_html, desc_html, _tag_pills(it), _item_heat_html(it, ref))
+        _card_shell(i, pill_html, word_html, desc_html, _tag_pills(it), "")
 
 
 def _find_source_key(results: dict, item: dict) -> Optional[str]:
@@ -329,7 +281,7 @@ def render_cross(topn: int, force: bool):
     clusters = st.session_state.get("cross_clusters") or []
 
     ok_sources = len([k for k, r in results.items() if r.get("ok") and r.get("items")])
-    render_meta_chips(results, keys, "全网交叉榜", len(clusters), ok_sources)
+    render_meta_chips(results, keys, "全网交叉榜", len(clusters), ok_sources, item_label="⚡ 交叉话题")
 
     if not clusters:
         down = [sources.SOURCES[k]["name"] for k in keys
@@ -344,10 +296,8 @@ def render_cross(topn: int, force: bool):
         return
 
     st.caption(f"以下 {min(len(clusters), topn)} 个话题正被 ≥{aggregate.MIN_CLUSTER} 个数据源同时关注，"
-               f"按命中源数量与综合热度排序。综合热度为统一口径（各源榜内相对位置 × 源数，满分 100），"
-               f"各平台的原始热度单位不同，不可直接跨源比较")
+               f"按命中源数量排序（同源数按综合热度，统一口径为各源榜内相对位置，不展示跨源热度数字）")
     shown = clusters[:topn]
-    max_comp = max(c.get("composite", 0) for c in shown) or 1
     name_to_key = {v["name"]: k for k, v in sources.SOURCES.items()}
     for i, c in enumerate(shown, 1):
         seen, pills = set(), []
@@ -358,14 +308,10 @@ def render_cross(topn: int, force: bool):
             src_key = name_to_key.get(m_name)
             if src_key:
                 pills.append(_pill(sources.SOURCES[src_key]["color"], m_name))
+        pills.append(f'<span class="tag-badge">⚡ {len(c["sources"])} 源命中</span>')
         pill_html = f'<div class="pill-row">{"".join(pills)}</div>'
         word_html, desc_html = _word_desc_html(c)
-        comp = int(round(c.get("composite", 0) / max_comp * 100))
-        comp = max(4, comp)
-        num = f'<span class="heat-num">⚡ {len(c["sources"])} 源 · 🔥 {comp}</span>'
-        heat_html = (f'<div class="hot-heat">{num}'
-                     f'<div class="heat-bar"><div class="heat-fill" style="width:{comp}%"></div></div></div>')
-        _card_shell(i, pill_html, word_html, desc_html, "", heat_html)
+        _card_shell(i, pill_html, word_html, desc_html, "", "")
 
 
 # ---------------------------------------------------------------- 侧边栏

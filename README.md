@@ -46,13 +46,13 @@ One board shows you one platform's view — and Baidu's skews entertainment. Thi
 
 ## ✨ Features
 
-- 🌐 **Cross-source board (flagship)**: title-similarity clustering merges entries about the same event from ≥2 sources, ranked by hit count and heat — tell "platform noise" from "global news" at a glance
+- 🌐 **Cross-source board (flagship)**: title-similarity clustering merges entries about the same event from ≥2 sources, ranked by hit count (ties by a unified composite heat) — tell "platform noise" from "global news" at a glance
 - 🗂️ **Three category views**: 🇨🇳 Domestic / 🌍 World / 💻 Tech — single source, or a "mixed stream" that interleaves all sources by rank
 - 🆕 **New / time-on-board badges**: SQLite snapshots mark first-seen topics and how long an entry has been trending
 - 🛡️ **Three-tier fallback, never blank**: live data → 15-min cached snapshot (with age notice) → sample data
 - 🩺 **Source diagnostics panel**: probes all 11 sources in parallel, reporting availability, item count and latency
 - ⚖️ **Rate-limit friendly**: per-source caching, short-lived failure caching, staggered requests and 429 backoff
-- 🎨 **Dark "ember" theme**: glassy cards, fire-gradient accents, TOP-3 medals, heat bars, LIVE pulse, brand-colored source badges
+- 🎨 **Dark "ember" theme**: glassy cards, fire-gradient accents, TOP-3 medals, LIVE pulse, brand-colored source badges
 
 ## 📡 Data Sources
 
@@ -117,8 +117,8 @@ Usually public-instance rate limiting or an upstream hiccup — it auto-retries 
 **Is history (new badges) kept forever?**
 Streamlit Cloud wipes the filesystem on redeploy, so history only accumulates within one instance's lifetime. Self-host with a persistent volume to keep it long-term (7 days retained by default).
 
-**Why can't heat numbers be compared across sources?**
-Every platform scores heat differently; bars are relative within the current view. The cross-source board ranks by hit count first. World-news sources (Google News / NYT) have no platform heat metric — the heat column shows **publish time** instead (freshness bar decays over 24h).
+**Why don't cards show heat numbers or bars?**
+Heat units differ per platform, and comparing them across sources is misleading (it also caused "rank #1 shows less heat than #2" confusion). Boards therefore show only rank, source hits and time-on-board. Heat still drives ordering behind the scenes: the cross-source board ranks by hit count (ties by composite heat), single-source views follow each platform's own order.
 
 ## 👤 Author
 
