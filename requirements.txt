@@ -1,2 +1,4 @@
-streamlit
-requests
+# 运行时依赖：锁定到当前通过全部测试的版本组合。
+# Streamlit 前端 DOM 结构与 API 跨版本可能破坏 UI，升级前先本地跑 CI 同款检查。
+streamlit==1.62.0
+requests==2.34.2
