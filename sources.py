@@ -86,6 +86,31 @@ def _to_heat(v):
         return None
 
 
+def _collect(raw_items, title_of, url_of=lambda it, t: "", desc_of=lambda it, t: "",
+             heat_of=lambda it, t: None, rank_of=None):
+    """各源 fetcher 公共循环：空 title 跳过 + rank 递增 + 统一 schema 组装。
+
+    title_of(it) 提取并清洗标题，返回空值则跳过该条；其余字段提取函数收
+    (原始条目, title) 两个参数（微博/抖音/B站等 URL 由 title 拼出）。
+    rank_of 为 None 时按已收集条数递增（1 起）；否则 rank_of(序号, 原始条目)，
+    序号 = len(items)+1。字段名、热度解析、排序、截断等差异全部留在调用侧。
+    """
+    items = []
+    for it in raw_items:
+        title = title_of(it)
+        if not title:
+            continue
+        seq = len(items) + 1
+        items.append({
+            "rank": rank_of(seq, it) if rank_of else seq,
+            "title": title,
+            "url": url_of(it, title),
+            "desc": desc_of(it, title),
+            "heat": heat_of(it, title),
+        })
+    return items
+
+
 def fetch_weibo(cfg):
     # 配置了微博 Cookie 时直连官方接口（云端也能用），否则走 60s API
     return _chain(_weibo_direct, lambda c: _norm_items(_sixty_get(c, "weibo")))(cfg)
@@ -104,15 +129,12 @@ def _weibo_direct(cfg):
     realtime = (d.get("data") or {}).get("realtime") or []
     if d.get("error") or not realtime:
         raise RuntimeError("微博接口返回异常（Cookie 可能已过期）")
-    items = []
-    for it in realtime:
-        w = str(it.get("word") or "").strip()
-        if not w:
-            continue
-        items.append({"rank": len(items) + 1, "title": w,
-                      "url": f"https://s.weibo.com/weibo?q={quote(w)}",
-                      "desc": "", "heat": _to_heat(it.get("num"))})
-    return items
+    return _collect(
+        realtime,
+        title_of=lambda it: str(it.get("word") or "").strip(),
+        url_of=lambda it, w: f"https://s.weibo.com/weibo?q={quote(w)}",
+        heat_of=lambda it, w: _to_heat(it.get("num")),
+    )
 
 
 def fetch_douyin(cfg):
@@ -135,14 +157,13 @@ def _douyin_direct(cfg):
                headers={"Referer": "https://www.douyin.com/"}, timeout=10)
     r2.raise_for_status()
     wl = ((r2.json().get("data") or {}).get("word_list")) or []
-    items = []
-    for it in wl:
-        w = str(it.get("word") or "").strip()
-        if not w:
-            continue
-        items.append({"rank": int(it.get("position") or len(items) + 1), "title": w,
-                      "url": f"https://www.douyin.com/search/{quote(w)}",
-                      "desc": "", "heat": _to_heat(it.get("hot_value"))})
+    items = _collect(
+        wl,
+        title_of=lambda it: str(it.get("word") or "").strip(),
+        url_of=lambda it, w: f"https://www.douyin.com/search/{quote(w)}",
+        heat_of=lambda it, w: _to_heat(it.get("hot_value")),
+        rank_of=lambda seq, it: int(it.get("position") or seq),
+    )
     items.sort(key=lambda x: x["rank"])
     return items
 
@@ -166,15 +187,12 @@ def _toutiao_direct(cfg):
     r = build_session(cfg).get("https://www.toutiao.com/hot-event/hot-board/?origin=toutiao_pc",
                                timeout=10)
     r.raise_for_status()
-    items = []
-    for it in r.json().get("data") or []:
-        title = str(it.get("Title") or "").strip()
-        if not title:
-            continue
-        items.append({"rank": len(items) + 1, "title": title,
-                      "url": it.get("Url") or "", "desc": "",
-                      "heat": _to_heat(it.get("HotValue"))})
-    return items
+    return _collect(
+        r.json().get("data") or [],
+        title_of=lambda it: str(it.get("Title") or "").strip(),
+        url_of=lambda it, t: it.get("Url") or "",
+        heat_of=lambda it, t: _to_heat(it.get("HotValue")),
+    )
 
 
 def _bilibili_direct(cfg):
@@ -182,15 +200,13 @@ def _bilibili_direct(cfg):
                                timeout=10)
     r.raise_for_status()
     lst = ((r.json().get("data") or {}).get("list")) or []
-    items = []
-    for it in lst:
-        kw = str(it.get("keyword") or it.get("show_name") or "").strip()
-        if not kw:
-            continue
-        items.append({"rank": it.get("position") or len(items) + 1, "title": kw,
-                      "url": f"https://search.bilibili.com/all?keyword={quote(kw)}",
-                      "desc": "", "heat": _to_heat(it.get("hot_score"))})
-    return items
+    return _collect(
+        lst,
+        title_of=lambda it: str(it.get("keyword") or it.get("show_name") or "").strip(),
+        url_of=lambda it, kw: f"https://search.bilibili.com/all?keyword={quote(kw)}",
+        heat_of=lambda it, kw: _to_heat(it.get("hot_score")),
+        rank_of=lambda seq, it: it.get("position") or seq,
+    )
 
 
 def fetch_toutiao(cfg):
@@ -217,17 +233,13 @@ def _parse_cn_heat(text):
 
 def fetch_zhihu(cfg):
     # 知乎数值热度在 hot_value_desc 文案（如「2678 万」）里，detail 作为简介
-    raw = _sixty_get(cfg, "zhihu")
-    items = []
-    for it in raw:
-        title = str(it.get("title") or "").strip()
-        if not title:
-            continue
-        items.append({"rank": len(items) + 1, "title": title,
-                      "url": it.get("link") or "",
-                      "desc": str(it.get("detail") or "").strip(),
-                      "heat": _parse_cn_heat(it.get("hot_value_desc"))})
-    return items
+    return _collect(
+        _sixty_get(cfg, "zhihu"),
+        title_of=lambda it: str(it.get("title") or "").strip(),
+        url_of=lambda it, t: it.get("link") or "",
+        desc_of=lambda it, t: str(it.get("detail") or "").strip(),
+        heat_of=lambda it, t: _parse_cn_heat(it.get("hot_value_desc")),
+    )
 
 
 # ---------------------------------------------------------------- 百度（直连，保留原有逻辑）
@@ -343,51 +355,51 @@ def fetch_hackernews(cfg):
     r = build_session(cfg).get(
         "https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage=30", timeout=12)
     r.raise_for_status()
-    items = []
-    for i, h in enumerate(r.json().get("hits", [])):
-        title = (h.get("title") or "").strip()
-        if not title:
-            continue
-        url = h.get("url") or f"https://news.ycombinator.com/item?id={h.get('objectID')}"
-        comments = h.get("num_comments") or 0
-        items.append({"rank": len(items) + 1, "title": title, "url": url,
-                      "desc": f"{h.get('author', '')} · 💬 {comments}" if h.get("author") else "",
-                      "heat": _to_heat(h.get("points"))})
-    return items
+    return _collect(
+        r.json().get("hits", []),
+        title_of=lambda h: (h.get("title") or "").strip(),
+        url_of=lambda h, t: h.get("url") or f"https://news.ycombinator.com/item?id={h.get('objectID')}",
+        desc_of=lambda h, t: f"{h.get('author', '')} · 💬 {h.get('num_comments') or 0}" if h.get("author") else "",
+        heat_of=lambda h, t: _to_heat(h.get("points")),
+    )
 
 
 def fetch_v2ex(cfg):
     r = build_session(cfg).get("https://www.v2ex.com/api/topics/hot.json", timeout=12)
     r.raise_for_status()
-    items = []
-    for t in r.json():
-        title = (t.get("title") or "").strip()
-        if not title:
-            continue
-        content = re.sub(r"<[^>]+>", "", t.get("content") or "").strip()
-        items.append({"rank": len(items) + 1, "title": title, "url": t.get("url") or "",
-                      "desc": content[:120], "heat": _to_heat(t.get("replies"))})
-    return items
+    return _collect(
+        r.json(),
+        title_of=lambda t: (t.get("title") or "").strip(),
+        url_of=lambda t, title: t.get("url") or "",
+        desc_of=lambda t, title: re.sub(r"<[^>]+>", "", t.get("content") or "").strip()[:120],
+        heat_of=lambda t, title: _to_heat(t.get("replies")),
+    )
 
 
 def fetch_github(cfg):
     r = build_session(cfg).get("https://github.com/trending", timeout=15)
     r.raise_for_status()
     articles = re.findall(r'<article class="Box-row">(.*?)</article>', r.text, re.S)
-    items = []
-    for art in articles:
+
+    def repo_of(art):
         m = re.search(r'href="/([\w.-]+/[\w.-]+)"', art)
-        if not m:
-            continue
-        repo = m.group(1)
+        return m.group(1) if m else ""  # 空值即跳过，等价于原「正则不匹配 continue」
+
+    def desc_of(art, repo):
         dm = re.search(r'<p class="col-9[^"]*">\s*(.*?)\s*</p>', art, re.S)
-        desc = re.sub(r"<[^>]+>", "", dm.group(1)).strip() if dm else ""
+        return (re.sub(r"<[^>]+>", "", dm.group(1)).strip() if dm else "")[:120]
+
+    def heat_of(art, repo):
         sm = re.search(r"([\d,]+)\s*stars today", art)
-        heat = _to_heat(sm.group(1).replace(",", "")) if sm else None
-        items.append({"rank": len(items) + 1, "title": repo,
-                      "url": f"https://github.com/{repo}",
-                      "desc": desc[:120], "heat": heat})
-    return items
+        return _to_heat(sm.group(1).replace(",", "")) if sm else None
+
+    return _collect(
+        articles,
+        title_of=repo_of,
+        url_of=lambda art, repo: f"https://github.com/{repo}",
+        desc_of=desc_of,
+        heat_of=heat_of,
+    )
 
 
 # ---------------------------------------------------------------- 注册表
