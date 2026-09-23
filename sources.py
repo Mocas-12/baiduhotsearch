@@ -4,7 +4,8 @@
 每个 fetcher 返回统一 schema 的 list[dict]：
     {"rank": 排名, "title": 标题, "url": 链接, "desc": 简介, "heat": 热度(float|None)}
 fetcher 只接收一个普通 dict 参数 cfg（由 app.py 从 session_state 组装），不依赖 streamlit：
-    cfg = {"proxy": str|None, "insecure": bool, "sixty_base": str|None}
+    cfg = {"proxy": str|None, "insecure": bool, "sixty_base": str|None,
+           "weibo_cookie": str|None}
 任何失败直接抛异常，由上层决定降级策略。
 """
 import random

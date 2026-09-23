@@ -51,15 +51,19 @@ def first_seen_many(source: str, titles: list) -> dict:
         return {}
     conn = _conn()
     try:
+        # 单条 GROUP BY 替代逐标题 N+1；调用方单批 ≤60 个标题，远低于 SQLite 变量上限
+        placeholders = ",".join("?" * len(titles))
+        rows = conn.execute(
+            "SELECT title, MIN(ts) FROM snapshots"
+            f" WHERE source=? AND title IN ({placeholders}) GROUP BY title",
+            (source, *titles)).fetchall()
+        raw = dict(rows)
         marks = {}
         for title in titles:
-            row = conn.execute(
-                "SELECT MIN(ts) FROM snapshots WHERE source=? AND title=?",
-                (source, title)).fetchone()
             ts = None
-            if row and row[0]:
+            if raw.get(title):
                 try:
-                    ts = datetime.fromisoformat(row[0])
+                    ts = datetime.fromisoformat(raw[title])
                 except ValueError:
                     ts = None
             marks[title] = ts
