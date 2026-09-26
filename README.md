@@ -12,7 +12,7 @@
 
 **[🌐 Live Dashboard (Streamlit Cloud)](https://baiduhotsearch-d9ysnhxbkzeskrnd5apnn5.streamlit.app/)**
 
-[简体中文](./README.zh-CN.md) | **English**
+**English** | [简体中文](./README.zh-CN.md) | [日本語](./README.ja-JP.md)
 
 *Formerly "Baidu Hot Search" — a single-board dashboard, now a multi-source trending radar*
 

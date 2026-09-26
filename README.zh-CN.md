@@ -12,6 +12,8 @@
 
 **[🌐 在线看板（Streamlit Cloud）](https://baiduhotsearch-d9ysnhxbkzeskrnd5apnn5.streamlit.app/)**
 
+[English](./README.md) | **简体中文** | [日本語](./README.ja-JP.md)
+
 *前身「中国热搜（百度）」—— 单一百度榜单的看板已升级为多源聚合雷达*
 
 </div>
