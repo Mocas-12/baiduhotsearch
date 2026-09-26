@@ -36,7 +36,7 @@
 - [How It Works](#-how-it-works)
 - [Project Structure](#-project-structure)
 - [Quick Start](#-quick-start)
-- [Configuration](#-configuration)
+- [Configuration](#️-configuration)
 - [FAQ](#-faq)
 - [License](#-license)
 
