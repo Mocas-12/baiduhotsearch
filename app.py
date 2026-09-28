@@ -188,18 +188,19 @@ def _onboard_meta(item: dict) -> str:
 
 def _row(rank: int, word: str, desc_html: str, pills_html: str, meta_html: str, link: str) -> str:
     href = f' href="{html.escape(link, quote=True)}"' if link else ""
+    rank_cls = {1: " r1", 2: " r2", 3: " r3"}.get(rank, "")
     return (f'<a class="hs-row"{href} target="_blank" rel="noopener">'
-            f'<span class="rank">{rank}</span>'
+            f'<span class="rank{rank_cls}">{rank}</span>'
             f'<span class="hmain"><div class="hword">{word}</div>{desc_html}{pills_html}</span>'
             f'<span class="hmeta">{meta_html}</span></a>')
 
 
-def _panel(meta_line: str, view_key: str, thead: str, rows: list, empty_ghost: str,
+def _panel(meta_line: str, view_key: str, thead: str, rows: list,
            empty_title: str, empty_sub: str):
     title, sub = SECTION_META[view_key]
     head = (f'<div class="hs-section">{title}<span class="sub">{sub}</span></div>')
     if not rows:
-        body = (f'{head}<div class="hs-empty"><div class="ghost">{empty_ghost}</div>'
+        body = (f'{head}<div class="hs-empty">'
                 f'<div class="etitle">{empty_title}</div>'
                 f'<div class="esub">{empty_sub}</div></div>')
     else:
@@ -269,7 +270,7 @@ def render_category(view_key: str, sub: str, topn: int, force: bool):
 
     _panel("", view_key,
            '<div class="hs-thead"><span>词条</span><span class="r">在榜状态</span></div>',
-           rows, "SYNC", "暂时没有拿到数据",
+           rows, "暂时没有拿到数据",
            "点击「立即刷新」重试，或稍后再来看看")
 
 
@@ -333,13 +334,13 @@ def render_cross(topn: int, force: bool):
             if src_key:
                 badges.append(_src_badge(m_name, sources.SOURCES[src_key]["color"]))
         pills = f'<div class="pill-row">{"".join(badges)}</div>' if badges else ""
-        meta = f'<span class="hit"><b>×{len(c["sources"])}</b><i>SOURCES</i></span>'
+        meta = f'<span class="hit"><b>×{len(c["sources"])}</b><i>源命中</i></span>'
         word, desc_html, link = _word_parts(c)
         rows.append(_row(i, word, desc_html, pills, meta, link))
 
     _panel("", "cross",
            '<div class="hs-thead"><span>话题</span><span class="r">命中源</span></div>',
-           rows, "VOID", "暂时没有交叉话题",
+           rows, "暂时没有交叉话题",
            "各榜单对齐需要时间，稍后再试试")
 
 
@@ -351,7 +352,7 @@ def render_nav():
         <div class="hs-nav"><div class="hs-nav-inner">
           <span class="hs-logo">
             <span class="hs-logo-mark"></span>
-            <span class="hs-logo-word">HOT<span>RADAR</span></span>
+            <span class="hs-logo-word">HOTRADAR</span>
             <span class="hs-logo-sub">LIVE</span>
           </span>
           <span class="spacer"></span>
@@ -391,11 +392,11 @@ def render_ticker():
         for it in (c.get("items") or [])[:2]:
             w = re.sub(r"\s+", " ", str(it.get("title") or "")).strip()
             if w:
-                parts.append(f'<span class="ti"><b>▮</b>{html.escape(name)} '
+                parts.append(f'<span class="ti"><b>{html.escape(name)}</b>'
                              f'<strong>{html.escape(w)}</strong></span>')
     if not parts:
         st.markdown('<div class="hs-ticker"><div class="hs-ticker-track static">'
-                    '<span class="ti"><b>▮</b>正在同步全网热搜 · 首屏加载约几秒，稍候片刻…</span>'
+                    '<span class="ti">正在同步全网热搜 · 首屏加载约几秒，稍候片刻…</span>'
                     "</div></div>",
                     unsafe_allow_html=True)
         return
@@ -408,8 +409,8 @@ def render_hero(n_sources: int) -> bool:
     head_l, head_r = st.columns([4, 1], vertical_alignment="center")
     with head_l:
         st.markdown(f'<div class="hs-overline"><span class="dot"></span>'
-                    f'REALTIME PULSE · {n_sources} SOURCES LIVE</div>', unsafe_allow_html=True)
-        st.markdown('<div class="hs-h1">全网热搜<em>雷达</em></div>', unsafe_allow_html=True)
+                    f'LIVE · {n_sources} 源实时聚合</div>', unsafe_allow_html=True)
+        st.markdown('<div class="hs-h1">全网热搜雷达</div>', unsafe_allow_html=True)
         st.markdown('<div class="hs-tagline">国内热点 · 国际大事 · 科技动态 —— 一页看清全网正在发生的事</div>',
                     unsafe_allow_html=True)
     with head_r:

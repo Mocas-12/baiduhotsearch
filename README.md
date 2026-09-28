@@ -52,7 +52,7 @@ One board shows you one platform's view — and Baidu's skews entertainment. Thi
 - 🛡️ **Three-tier fallback, never blank**: live data → 15-min cached snapshot (with age notice) → sample data
 - 🩺 **Source diagnostics panel**: probes all 11 sources in parallel, reporting availability, item count and latency
 - ⚖️ **Rate-limit friendly**: per-source caching, short-lived failure caching, staggered requests and 429 backoff
-- 🎨 **Dark "ember" theme**: glassy cards, fire-gradient accents, TOP-3 medals, LIVE pulse, brand-colored source badges
+- 🎨 **"Pulse Glass" dark theme, Apple-style**: frosted-glass panels, iOS segmented controls, system-red LIVE accent, TOP-3 system-color ranks, brand-tinted source chips, live hot-word ticker
 
 ## 📡 Data Sources
 
@@ -85,7 +85,7 @@ flowchart LR
 ## 📁 Project Structure
 
 ```
-├── app.py          # Page shell: view nav, cache orchestration, fallbacks, cards
+├── app.py          # Page shell: view nav, cache orchestration, fallbacks, leaderboard rows
 ├── sources.py      # Source registry & fetchers (unified schema, streamlit-free)
 ├── aggregate.py    # Cross-source board: title normalization + similarity clustering
 ├── store.py        # SQLite history snapshots (new / time-on-board)
@@ -117,7 +117,7 @@ Usually public-instance rate limiting or an upstream hiccup — it auto-retries 
 **Is history (new badges) kept forever?**
 Streamlit Cloud wipes the filesystem on redeploy, so history only accumulates within one instance's lifetime. Self-host with a persistent volume to keep it long-term (7 days retained by default).
 
-**Why don't cards show heat numbers or bars?**
+**Why don't rows show heat numbers or bars?**
 Heat units differ per platform, and comparing them across sources is misleading (it also caused "rank #1 shows less heat than #2" confusion). Boards therefore show only rank, source hits and time-on-board. Heat still drives ordering behind the scenes: the cross-source board ranks by hit count (ties by composite heat), single-source views follow each platform's own order.
 
 ## 👤 Author
