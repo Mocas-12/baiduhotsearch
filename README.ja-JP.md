@@ -2,7 +2,7 @@
 
 <img src="./logo.svg" width="96" alt="Hot Search Radar Logo" />
 
-# 🔥 Hot Search Radar (全网热搜雷达)
+# Hot Search Radar
 
 **国内の話題 · 世界のニュース · Tech トレンド——11 のライブソースを 1 ページに集約**
 

@@ -2,7 +2,7 @@
 
 <img src="./logo.svg" width="96" alt="Hot Search Radar Logo" />
 
-# 🔥 全网热搜雷达 (Hot Search Radar)
+# 全网热搜雷达
 
 **国内热点 · 国际大事 · 科技动态 —— 11 个数据源实时聚合，一页看清全网正在发生的事**
 
