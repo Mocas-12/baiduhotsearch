@@ -39,7 +39,7 @@ def _sixty_get(cfg: dict, endpoint: str, timeout: int = 12):
     bases = ([cfg["sixty_base"]] if cfg.get("sixty_base") else []) + SIXTY_BASES
     last_err = None
     # 应用并行抓多个源时会同时打到同一实例，错峰 + 429 退避，避免触发限流
-    time.sleep(random.uniform(0.3, 1.5))
+    time.sleep(random.SystemRandom().uniform(0.3, 1.5))
     for base in dict.fromkeys(bases):  # 去重且保持顺序
         for attempt in (1, 2):
             try:
@@ -286,7 +286,14 @@ def fetch_baidu(cfg):
 # ---------------------------------------------------------------- 国际（RSS / 开放接口）
 
 def _parse_rss(text: str, max_items: int = 30, with_time: bool = False):
-    """解析 RSS/Atom，返回 [(title, link, desc[, ts])]，CDATA 与命名空间均兼容。"""
+    """解析 RSS/Atom，返回 [(title, link, desc[, ts])]，CDATA 与命名空间均兼容。
+
+    DTD/实体声明的 XML 一律拒收：内部实体扩展（billion laughs）可打爆解析器，
+    而正常榜单源用不到 DTD；命中降级链由上层缓存兜底。
+    """
+    lowered = text.lower()
+    if "<!doctype" in lowered or "<!entity" in lowered:
+        raise ValueError("拒绝解析包含 DTD/实体声明的 XML（防实体扩展攻击）")
     ns = {"atom": "http://www.w3.org/2005/Atom"}
     root = ET.fromstring(text.encode("utf-8"))  # 带 encoding 声明的 XML 必须传 bytes
     out = []
