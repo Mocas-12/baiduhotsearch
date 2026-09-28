@@ -1,7 +1,10 @@
+# Streamlit Cloud 会读取仓库内的 .streamlit/config.toml。
+# 主题主色与 PULSE TERMINAL（styles.py）保持一致：金色主色，根治滑块/焦点环等
+# 组件沿用旧橙色的问题；CSS 中的极光渐变背景在其上层覆盖。
 [theme]
 base = "dark"
-primaryColor = "#ff512f"
-backgroundColor = "#0d0f16"
-secondaryBackgroundColor = "#171a24"
-textColor = "#f2f4f9"
+primaryColor = "#f0c75e"
+backgroundColor = "#06070b"
+secondaryBackgroundColor = "#141824"
+textColor = "#eef0f6"
 font = "sans serif"
