@@ -5,7 +5,7 @@
     sources.py   数据源注册表与抓取器（统一 schema）
     aggregate.py 跨源交叉榜聚类
     store.py     SQLite 历史快照（新上榜 / 上榜时长）
-    styles.py    主题样式（PULSE TERMINAL，与 GAMECHARTS 同族）
+    styles.py    主题样式（PULSE GLASS 苹果生态风）
 """
 import html
 import os
