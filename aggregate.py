@@ -30,9 +30,10 @@ def build_clusters(all_items: list, min_sources: int = MIN_CLUSTER) -> list:
     """all_items: [{"source": 源key, "source_name": 展示名, "rel": 榜内相对热度0-1, ...}, ...]
 
     返回簇列表，每簇：
-    {"title", "url", "desc", "sources": [源名...], "n_sources": int,
+    {"title", "url", "desc", "sources": [源名...]（命中源数 = len(sources)）,
      "strength": 榜内相对热度最强值(0-1), "max_heat": 原始最大热度,
      "members": [(源名, 词条)]}
+    另含内部字段 norm/rank（代表词条的归一化标题与榜内排名）。
     排序：命中源数优先，同源数下按 strength（排序键 = 源数 + strength 的
     单一标量，保证第一名 ≥ 第二名）。
     """
