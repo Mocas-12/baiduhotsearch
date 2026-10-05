@@ -59,7 +59,7 @@ One board shows you one platform's view — and Baidu's skews entertainment. Thi
 | Category | Sources | Access |
 |---|---|---|
 | 🇨🇳 Domestic | Toutiao / Douyin / Bilibili | First-party APIs direct (Douyin auto-registers ttwid), [60s API](https://github.com/vikiboss/60s) fallback |
-| 🇨🇳 Domestic | Weibo | Direct once you paste a Cookie in the sidebar; otherwise via 60s API |
+| 🇨🇳 Domestic | Weibo | Direct open endpoint (no login), auto visitor-cookie on risk control; 60s API last resort |
 | 🇨🇳 Domestic | Zhihu | [60s API](https://github.com/vikiboss/60s) aggregator |
 | 🇨🇳 Domestic | Baidu | Direct top.baidu.com (proxy supported) |
 | 🇨🇳 Domestic | Tieba / Tencent News / The Paper | First-party APIs direct (no login) |
@@ -69,7 +69,7 @@ One board shows you one platform's view — and Baidu's skews entertainment. Thi
 | 💻 Tech | V2EX | Official open API |
 | 💻 Tech | Juejin / Product Hunt | Juejin open API; Product Hunt Atom feed |
 
-> 💡 Public 60s API instances strictly rate-limit datacenter IPs (Streamlit Cloud, some VPS), so Zhihu/60s Daily may stay unavailable on cloud deploys. Toutiao, Douyin, Bilibili and Baidu connect directly and are unaffected. Weibo goes direct once you paste its Cookie in the sidebar (login weibo.com → F12 → copy the `SUB=...` cookie). For full domestic coverage, self-host a 60s API instance and point the sidebar to it.
+> 💡 Public 60s API instances strictly rate-limit datacenter IPs (Streamlit Cloud, some VPS), so Zhihu/60s Daily may stay unavailable on cloud deploys. Toutiao, Douyin, Bilibili and Baidu connect directly and are unaffected. Weibo connects without any Cookie (an auto-registered visitor session kicks in on risk control); pasting a `SUB=...` cookie in the sidebar adds extra stability. For full domestic coverage, self-host a 60s API instance and point the sidebar to it.
 
 ## 🧠 How It Works
 

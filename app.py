@@ -434,9 +434,9 @@ def render_sidebar():
             st.caption("国内源经 60s API 聚合获取；百度源直连 top.baidu.com，海外网络通常需配置代理。")
             st.text_input("60s API 实例（可选，留空用内置实例）",
                           key="sixty_base", placeholder="https://your-instance.example.com")
-            st.text_input("微博 Cookie（可选，填 SUB=... 后微博直连）",
+            st.text_input("微博 Cookie（可选，直连被风控时填 SUB=... 更稳）",
                           key="weibo_cookie",
-                          placeholder="登录 weibo.com 后从浏览器复制",
+                          placeholder="通常无需填写；登录 weibo.com 后从浏览器复制",
                           type="password")
             st.checkbox("启用代理", key="proxy_enabled")
             st.text_input("HTTPS 代理（示例：https://1.2.3.4:8080）", key="proxy_url")

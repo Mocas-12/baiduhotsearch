@@ -8,6 +8,7 @@ fetcher 只接收一个普通 dict 参数 cfg（由 app.py 从 session_state 组
            "weibo_cookie": str|None}
 任何失败直接抛异常，由上层决定降级策略。
 """
+import json
 import random
 import re
 import time
@@ -113,8 +114,27 @@ def _collect(raw_items, title_of, url_of=lambda it, t: "", desc_of=lambda it, t:
 
 
 def fetch_weibo(cfg):
-    # 配置了微博 Cookie 时直连官方接口（云端也能用），否则走 60s API
-    return _chain(_weibo_direct, lambda c: _norm_items(_sixty_get(c, "weibo")))(cfg)
+    # 四通道容灾：用户 Cookie 直连 → 无 Cookie 直连（端点对未登录开放）→
+    # 访客态自动注册 → 60s API
+    return _chain(_weibo_direct, _weibo_nocookie, _weibo_visitor,
+                  lambda c: _norm_items(_sixty_get(c, "weibo")))(cfg)
+
+
+def _weibo_headers():
+    return {"Referer": "https://weibo.com/",
+            "Accept": "application/json, text/plain, */*"}
+
+
+def _weibo_realtime_items(d):
+    realtime = (d.get("data") or {}).get("realtime") or []
+    if d.get("error") or not realtime:
+        raise RuntimeError("微博接口返回异常（Cookie 可能已过期）")
+    return _collect(
+        [it for it in realtime if not it.get("is_ad")],  # 广告位不占榜
+        title_of=lambda it: str(it.get("word") or "").strip(),
+        url_of=lambda it, w: f"https://s.weibo.com/weibo?q={quote(w)}",
+        heat_of=lambda it, w: _to_heat(it.get("num")),
+    )
 
 
 def _weibo_direct(cfg):
@@ -122,20 +142,55 @@ def _weibo_direct(cfg):
     if not cookie:
         raise RuntimeError("未配置微博 Cookie")
     s = build_session(cfg)
-    s.headers.update({"Cookie": cookie, "Referer": "https://weibo.com/",
-                      "Accept": "application/json, text/plain, */*"})
+    s.headers.update({"Cookie": cookie, **_weibo_headers()})
     r = s.get("https://weibo.com/ajax/side/hotSearch", timeout=10)
     r.raise_for_status()
-    d = r.json()
-    realtime = (d.get("data") or {}).get("realtime") or []
-    if d.get("error") or not realtime:
-        raise RuntimeError("微博接口返回异常（Cookie 可能已过期）")
-    return _collect(
-        realtime,
-        title_of=lambda it: str(it.get("word") or "").strip(),
-        url_of=lambda it, w: f"https://s.weibo.com/weibo?q={quote(w)}",
-        heat_of=lambda it, w: _to_heat(it.get("num")),
-    )
+    return _weibo_realtime_items(r.json())
+
+
+def _weibo_nocookie(cfg):
+    # 实测端点对未登录请求开放，返回完整 50 条榜单（rank/num 齐全）
+    s = build_session(cfg)
+    s.headers.update(_weibo_headers())
+    r = s.get("https://weibo.com/ajax/side/hotSearch", timeout=10)
+    r.raise_for_status()
+    return _weibo_realtime_items(r.json())
+
+
+def _jsonp(text: str) -> dict:
+    """解析 genvisitor/incarnate 的 JSONP 回包：取最外层花括号内的 JSON。"""
+    return json.loads(text[text.index("{"):text.rindex("}") + 1])
+
+
+def _weibo_visitor(cfg):
+    # 访客态自动注册（genvisitor → incarnate 换 SUB/SUBP），仿浏览器首次访问；
+    # 无 Cookie 直连被 IP 风控拦下时的第二道防线（同抖音 ttwid 思路）
+    s = build_session(cfg)
+    fp = quote('{"os":"2","browser":"Chrome120,120,0,0","fonts":"undefined",'
+               '"screenInfo":"1920*1080*24","plugins":""}')
+    r = s.post("https://passport.weibo.com/visitor/genvisitor",
+               data=f"cb=gen_callback&fp={fp}",
+               headers={"Content-Type": "application/x-www-form-urlencoded"},
+               timeout=10)
+    r.raise_for_status()
+    tid = (_jsonp(r.text).get("data") or {}).get("tid")
+    if not tid:
+        raise RuntimeError("微博访客 tid 注册失败")
+    r2 = s.get("https://passport.weibo.com/visitor/visitor",
+               params={"a": "incarnate", "t": tid, "w": "2", "c": "100", "gc": "",
+                       "cb": "cross_domain", "from": "weibo"}, timeout=10)
+    r2.raise_for_status()
+    d2 = _jsonp(r2.text)
+    sub = (d2.get("data") or {}).get("sub")
+    if d2.get("retcode") != 20000000 or not sub:
+        raise RuntimeError("微博访客 Cookie 兑换失败")
+    s.cookies.set("SUB", sub, domain=".weibo.com")
+    if (d2.get("data") or {}).get("subp"):
+        s.cookies.set("SUBP", d2["data"]["subp"], domain=".weibo.com")
+    r3 = s.get("https://weibo.com/ajax/side/hotSearch",
+               headers=_weibo_headers(), timeout=10)
+    r3.raise_for_status()
+    return _weibo_realtime_items(r3.json())
 
 
 def fetch_douyin(cfg):

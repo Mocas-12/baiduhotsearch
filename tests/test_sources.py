@@ -326,8 +326,92 @@ def test_weibo_direct_error_response_raises():
         sources.build_session = old
 
 
+def test_weibo_nocookie_maps_realtime_and_skips_ads():
+    sess = FakeSession(get_resp=FakeResp(json_data={"ok": 1, "data": {"realtime": [
+        {"word": "热搜A", "num": 1166943, "rank": 0},
+        {"word": "广告位", "num": 999, "is_ad": 1, "rank": 1},   # 广告不占榜
+        {"word": "热搜B", "num": "852354", "rank": 2},
+        {"word": "   ", "rank": 3},                              # 空词跳过
+    ]}}))
+    old = sources.build_session
+    sources.build_session = lambda cfg: sess
+    try:
+        items = sources._weibo_nocookie({})
+    finally:
+        sources.build_session = old
+    method, url, _ = sess.calls[0]
+    assert (method, url) == ("GET", "https://weibo.com/ajax/side/hotSearch")
+    assert "Cookie" not in sess.headers  # 无 Cookie 请求
+    assert sess.headers["Referer"] == "https://weibo.com/"
+    assert [i["rank"] for i in items] == [1, 2]  # 广告/空词过滤后名次连续
+    assert [i["title"] for i in items] == ["热搜A", "热搜B"]
+    assert [i["heat"] for i in items] == [1166943.0, 852354.0]
+
+
+class SeqSession(FakeSession):
+    """按顺序回放多个响应（每个弹出一次，末尾重复最后一个），用于访客态三步流。"""
+
+    def __init__(self, get_resps=(), post_resps=(), **kw):
+        self._get_seq = list(get_resps)
+        self._post_seq = list(post_resps)
+        super().__init__(**kw)
+
+    def get(self, url, **kw):
+        self.calls.append(("GET", url, kw))
+        if self._get_err is not None:
+            raise self._get_err
+        return self._get_seq.pop(0) if len(self._get_seq) > 1 else self._get_seq[0]
+
+    def post(self, url, **kw):
+        self.calls.append(("POST", url, kw))
+        return self._post_seq.pop(0) if len(self._post_seq) > 1 else self._post_seq[0]
+
+
+WEIBO_VISITOR_JAR = requests.cookies.RequestsCookieJar()
+
+
+def test_weibo_visitor_registers_and_fetches():
+    sess = SeqSession(
+        post_resps=[FakeResp(text='gen_callback({"code":"0","data":{"tid":"TID1"}});')],
+        get_resps=[
+            FakeResp(text='cross_domain({"retcode":20000000,'
+                          '"data":{"sub":"SUBVIS","subp":"SUBPVIS"}});'),
+            FakeResp(json_data={"ok": 1, "data": {"realtime": [
+                {"word": "访客热词", "num": 100, "rank": 0}]}}),
+        ],
+        cookies=WEIBO_VISITOR_JAR)
+    old = sources.build_session
+    sources.build_session = lambda cfg: sess
+    try:
+        items = sources._weibo_visitor({})
+    finally:
+        sources.build_session = old
+    assert [(m, u) for m, u, _ in sess.calls] == [
+        ("POST", "https://passport.weibo.com/visitor/genvisitor"),
+        ("GET", "https://passport.weibo.com/visitor/visitor"),
+        ("GET", "https://weibo.com/ajax/side/hotSearch")]
+    assert sess.calls[1][2]["params"]["t"] == "TID1"  # incarnate 带上 tid
+    assert WEIBO_VISITOR_JAR.get("SUB") == "SUBVIS"
+    assert WEIBO_VISITOR_JAR.get("SUBP") == "SUBPVIS"
+    assert [i["title"] for i in items] == ["访客热词"]
+    assert items[0]["heat"] == 100.0
+
+
+def test_weibo_visitor_tid_failure_raises():
+    sess = SeqSession(
+        post_resps=[FakeResp(text='gen_callback({"code":"600000","data":{}});')],
+        get_resps=[FakeResp(text="")])
+    old = sources.build_session
+    sources.build_session = lambda cfg: sess
+    try:
+        with pytest.raises(RuntimeError, match="tid 注册失败"):
+            sources._weibo_visitor({})
+    finally:
+        sources.build_session = old
+
+
 def test_fetch_weibo_falls_back_to_sixty():
-    # 未配置 Cookie：直连通道立刻抛错 → 回退 60s API（_norm_items 管道）
+    # 无 Cookie 且无 Cookie 直连/访客态全被 IP 风控拦下 → 回退 60s API
     seen = {}
 
     def fake_sixty(cfg, endpoint):
@@ -336,10 +420,14 @@ def test_fetch_weibo_falls_back_to_sixty():
 
     old_sixty = sources._sixty_get
     sources._sixty_get = fake_sixty
+    blocked = FakeSession(get_err=Exception("403 blocked"))
+    old_build = sources.build_session
+    sources.build_session = lambda cfg: blocked
     try:
         items = sources.fetch_weibo({})
     finally:
         sources._sixty_get = old_sixty
+        sources.build_session = old_build
     assert seen["endpoint"] == "weibo"
     assert items == [{"rank": 1, "title": "T1", "url": "http://t1",
                       "desc": "", "heat": 1.0}]
