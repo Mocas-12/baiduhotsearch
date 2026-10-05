@@ -4,7 +4,7 @@
 
 # Hot Search Radar
 
-**Domestic buzz · World news · Tech trends — 11 live sources aggregated on one page**
+**Domestic buzz · World news · Tech trends — 16 live sources aggregated on one page**
 
 [![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org)
 [![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io)
@@ -42,7 +42,7 @@
 
 ## 🎯 Why
 
-One board shows you one platform's view — and Baidu's skews entertainment. This project aggregates **domestic life trends** (Weibo / Zhihu / Douyin / Toutiao / Baidu / Bilibili), **world news in Chinese** (Google News / NYT Chinese) and **tech circles** (Hacker News / GitHub Trending / V2EX) onto a single page, then algorithmically clusters topics that **multiple sources are reporting at the same time** — when several independent boards hit the same story, that's the news that actually matters.
+One board shows you one platform's view — and Baidu's skews entertainment. This project aggregates **domestic life trends** (Weibo / Zhihu / Douyin / Toutiao / Baidu / Bilibili / Tieba / Tencent News / The Paper), **world news in Chinese** (Google News / NYT Chinese) and **tech circles** (Hacker News / GitHub Trending / V2EX / Juejin / Product Hunt) onto a single page, then algorithmically clusters topics that **multiple sources are reporting at the same time** — when several independent boards hit the same story, that's the news that actually matters.
 
 ## ✨ Features
 
@@ -50,7 +50,7 @@ One board shows you one platform's view — and Baidu's skews entertainment. Thi
 - 🗂️ **Three category views**: 🇨🇳 Domestic / 🌍 World / 💻 Tech — single source, or a "mixed stream" that interleaves all sources by rank
 - 🆕 **New / time-on-board badges**: SQLite snapshots mark first-seen topics and how long an entry has been trending
 - 🛡️ **Three-tier fallback, never blank**: live data → 15-min cached snapshot (with age notice) → sample data
-- 🩺 **Source diagnostics panel**: probes all 11 sources in parallel, reporting availability, item count and latency
+- 🩺 **Source diagnostics panel**: probes all 16 sources in parallel, reporting availability, item count and latency
 - ⚖️ **Rate-limit friendly**: per-source caching, short-lived failure caching, staggered requests and 429 backoff
 - 🎨 **"Pulse Glass" dark theme, Apple-style**: frosted-glass panels, iOS segmented controls, system-red LIVE accent, TOP-3 system-color ranks, brand-tinted source chips, live hot-word ticker
 
@@ -62,10 +62,12 @@ One board shows you one platform's view — and Baidu's skews entertainment. Thi
 | 🇨🇳 Domestic | Weibo | Direct once you paste a Cookie in the sidebar; otherwise via 60s API |
 | 🇨🇳 Domestic | Zhihu | [60s API](https://github.com/vikiboss/60s) aggregator |
 | 🇨🇳 Domestic | Baidu | Direct top.baidu.com (proxy supported) |
+| 🇨🇳 Domestic | Tieba / Tencent News / The Paper | First-party APIs direct (no login) |
 | 🌍 World | Google News 中文 / NYT Chinese | RSS (stdlib parser, zero deps) |
 | 💻 Tech | Hacker News | Official Algolia API |
 | 💻 Tech | GitHub Trending | Page parsing |
 | 💻 Tech | V2EX | Official open API |
+| 💻 Tech | Juejin / Product Hunt | Juejin open API; Product Hunt Atom feed |
 
 > 💡 Public 60s API instances strictly rate-limit datacenter IPs (Streamlit Cloud, some VPS), so Zhihu/60s Daily may stay unavailable on cloud deploys. Toutiao, Douyin, Bilibili and Baidu connect directly and are unaffected. Weibo goes direct once you paste its Cookie in the sidebar (login weibo.com → F12 → copy the `SUB=...` cookie). For full domestic coverage, self-host a 60s API instance and point the sidebar to it.
 
@@ -73,7 +75,7 @@ One board shows you one platform's view — and Baidu's skews entertainment. Thi
 
 ```mermaid
 flowchart LR
-    A[11 sources<br/>60s API · RSS · open APIs] --> B[Parallel fetch sources.py<br/>unified schema]
+    A[16 sources<br/>60s API · RSS · open APIs] --> B[Parallel fetch sources.py<br/>unified schema]
     B --> C[Per-source cache 15min<br/>fallback snapshot/sample]
     B --> D[SQLite snapshots store.py<br/>new badges · time-on-board]
     B --> E[Title clustering aggregate.py<br/>cross-source board]

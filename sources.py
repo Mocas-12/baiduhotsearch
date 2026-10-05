@@ -243,6 +243,57 @@ def fetch_zhihu(cfg):
     )
 
 
+# ---------------------------------------------------------------- 国内（直连补充）
+
+def fetch_tieba(cfg):
+    # 贴吧热议榜：公开接口无需登录；话题详情页固定为 /hottopic/-topic-{id}
+    r = build_session(cfg).get("https://tieba.baidu.com/hottopic/browse/topicList",
+                               timeout=10)
+    r.raise_for_status()
+    topics = (((r.json().get("data") or {}).get("bang_topic") or {})
+              .get("topic_list")) or []
+    return _collect(
+        topics,
+        title_of=lambda it: str(it.get("topic_name") or "").strip(),
+        url_of=lambda it, t: f"https://tieba.baidu.com/hottopic/-topic-{it.get('topic_id')}",
+        desc_of=lambda it, t: str(it.get("topic_desc") or it.get("abstract") or "").strip()[:140],
+        heat_of=lambda it, t: _to_heat(it.get("discuss_num")),
+        rank_of=lambda seq, it: int(it.get("idx_num") or seq),
+    )
+
+
+def fetch_thepaper(cfg):
+    # 澎湃新闻热榜：cache 接口偶发返回空 body，按接口异常抛出走上层降级
+    r = build_session(cfg).get("https://cache.thepaper.cn/contentapi/wwwIndex/rightSidebar",
+                               timeout=10)
+    r.raise_for_status()
+    hot = (r.json().get("data") or {}).get("hotNews") or []
+    if not hot:
+        raise RuntimeError("澎湃接口返回异常")
+    return _collect(
+        hot,
+        title_of=lambda it: str(it.get("name") or "").strip(),
+        url_of=lambda it, t: (f"https://www.thepaper.cn/newsDetail_forward_{it.get('contId')}"
+                              if it.get("contId") else ""),
+        heat_of=lambda it, t: _to_heat(it.get("praiseTimes")),
+    )
+
+
+def fetch_qqnews(cfg):
+    # 腾讯新闻热点榜：首条是运营位（无 surl），靠 surl 缺失过滤，不算榜一
+    r = build_session(cfg).get("https://r.inews.qq.com/gw/event/hot_ranking_list?page_size=50",
+                               timeout=10)
+    r.raise_for_status()
+    news = (((r.json().get("idlist") or [{}])[0]).get("newslist")) or []
+    return _collect(
+        news,
+        title_of=lambda it: (str(it.get("longtitle") or it.get("title") or "").strip()
+                             if it.get("surl") else ""),
+        url_of=lambda it, t: it.get("surl") or "",
+        desc_of=lambda it, t: str(it.get("abstract") or "").strip()[:120],
+    )
+
+
 # ---------------------------------------------------------------- 百度（直连，保留原有逻辑）
 
 def fetch_baidu(cfg):
@@ -410,6 +461,28 @@ def fetch_github(cfg):
     )
 
 
+def fetch_juejin(cfg):
+    # 掘金热榜：官方开放接口；content.measures 常为空，热度留空走相对位置口径
+    r = build_session(cfg).get(
+        "https://api.juejin.cn/content_api/v1/content/article_rank?category_id=1&type=hot",
+        timeout=10)
+    r.raise_for_status()
+    d = r.json()
+    if d.get("err_no") != 0:
+        raise RuntimeError(f"掘金接口返回异常：{d.get('err_msg')}")
+    return _collect(
+        [e.get("content") or {} for e in (d.get("data") or [])],
+        title_of=lambda it: str(it.get("title") or "").strip(),
+        url_of=lambda it, t: (f"https://juejin.cn/post/{it.get('content_id')}"
+                              if it.get("content_id") else ""),
+        desc_of=lambda it, t: str(it.get("brief") or "").strip()[:120],
+    )
+
+
+def fetch_producthunt(cfg):
+    return _rss_items(cfg, "https://www.producthunt.com/feed")
+
+
 # ---------------------------------------------------------------- 注册表
 
 # cat: domestic=国内 world=国际 tech=科技；color 用于源徽章
@@ -420,11 +493,16 @@ SOURCES: dict = {
     "douyin":     {"name": "抖音热点",   "cat": "domestic", "color": "#fe2c55", "fetch": fetch_douyin},
     "toutiao":    {"name": "今日头条",   "cat": "domestic", "color": "#f04142", "fetch": fetch_toutiao},
     "bilibili":   {"name": "B站热榜",    "cat": "domestic", "color": "#fb7299", "fetch": fetch_bilibili},
+    "tieba":      {"name": "贴吧热议",   "cat": "domestic", "color": "#3388ff", "fetch": fetch_tieba},
+    "qqnews":     {"name": "腾讯新闻",   "cat": "domestic", "color": "#0052d9", "fetch": fetch_qqnews},
+    "thepaper":   {"name": "澎湃新闻",   "cat": "domestic", "color": "#d81e06", "fetch": fetch_thepaper},
     "gnews":      {"name": "Google News", "cat": "world",   "color": "#4285f4", "fetch": fetch_gnews},
     "nyt":        {"name": "纽约时报中文网", "cat": "world", "color": "#000000", "fetch": fetch_nyt},
     "hackernews": {"name": "Hacker News", "cat": "tech",    "color": "#ff6600", "fetch": fetch_hackernews},
     "github":     {"name": "GitHub Trending", "cat": "tech", "color": "#6e5494", "fetch": fetch_github},
     "v2ex":       {"name": "V2EX",       "cat": "tech",     "color": "#1a1a1a", "fetch": fetch_v2ex},
+    "juejin":     {"name": "掘金热榜",   "cat": "tech",     "color": "#1e80ff", "fetch": fetch_juejin},
+    "producthunt": {"name": "Product Hunt", "cat": "tech",  "color": "#da552f", "fetch": fetch_producthunt},
 }
 
 CATEGORY_LABELS = {"domestic": "🇨🇳 国内", "world": "🌍 国际", "tech": "💻 科技"}

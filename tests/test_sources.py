@@ -591,14 +591,124 @@ def test_fetch_github_rows_and_skips():
     assert all(set(i) == SCHEMA for i in items)
 
 
+# ---------------------------------------------------------------- fetcher 级：新增直连源
+
+def _with_session(sess, fn):
+    old = sources.build_session
+    sources.build_session = lambda cfg: sess
+    try:
+        return fn()
+    finally:
+        sources.build_session = old
+
+
+def test_fetch_tieba_rows_rank_and_url():
+    sess = FakeSession(get_resp=FakeResp(json_data={"data": {"bang_topic": {"topic_list": [
+        {"topic_name": "话题A", "topic_id": 111, "topic_desc": "描述A",
+         "discuss_num": "1990000", "idx_num": 1},
+        {"topic_name": "话题B", "topic_id": 222, "abstract": "仅abstract",
+         "discuss_num": 0, "idx_num": 3},               # 无 desc 回退 abstract；热度 0
+        {"topic_name": "  ", "topic_id": 333},          # 跳过
+    ]}, "sug_topic": {"topic_list": [{"topic_name": "推荐位不算榜"}]}}}))
+    items = _with_session(sess, lambda: sources.fetch_tieba({}))
+    assert sess.calls[0][1] == "https://tieba.baidu.com/hottopic/browse/topicList"
+    assert [i["rank"] for i in items] == [1, 3]  # rank 用 idx_num，名次留洞同抖音
+    assert items[0] == {"rank": 1, "title": "话题A",
+                        "url": "https://tieba.baidu.com/hottopic/-topic-111",
+                        "desc": "描述A", "heat": 1990000.0}
+    assert items[1]["url"] == "https://tieba.baidu.com/hottopic/-topic-222"
+    assert items[1]["desc"] == "仅abstract" and items[1]["heat"] == 0.0
+
+
+def test_fetch_thepaper_rows_and_empty_raises():
+    sess = FakeSession(get_resp=FakeResp(json_data={"data": {"hotNews": [
+        {"name": "新闻A", "contId": "10001", "praiseTimes": "168"},
+        {"name": "新闻B", "contId": "", "praiseTimes": None},  # 无 contId → 无链接
+        {"name": "", "contId": "10003"},                        # 跳过
+    ]}}))
+    items = _with_session(sess, lambda: sources.fetch_thepaper({}))
+    assert "cache.thepaper.cn" in sess.calls[0][1]
+    assert [i["rank"] for i in items] == [1, 2]
+    assert items[0] == {"rank": 1, "title": "新闻A",
+                        "url": "https://www.thepaper.cn/newsDetail_forward_10001",
+                        "desc": "", "heat": 168.0}
+    assert items[1]["url"] == "" and items[1]["heat"] is None
+
+    empty = FakeSession(get_resp=FakeResp(json_data={"data": {"hotNews": []}}))
+    with pytest.raises(RuntimeError, match="澎湃"):
+        _with_session(empty, lambda: sources.fetch_thepaper({}))
+
+
+def test_fetch_qqnews_skips_tip_slot():
+    sess = FakeSession(get_resp=FakeResp(json_data={"idlist": [{"newslist": [
+        {"id": "TIP1", "title": "腾讯新闻用户最关注的热点"},   # 运营位：无 surl
+        {"id": "A1", "title": "短标题", "longtitle": "长标题优先",
+         "surl": "https://view.inews.qq.com/a/A1", "abstract": "a" * 300},
+        {"id": "A2", "title": "无简介条目",
+         "surl": "https://view.inews.qq.com/a/A2"},
+    ]}]}))
+    items = _with_session(sess, lambda: sources.fetch_qqnews({}))
+    assert "hot_ranking_list" in sess.calls[0][1]
+    assert [i["rank"] for i in items] == [1, 2]  # TIP 被过滤且不占名次
+    assert items[0] == {"rank": 1, "title": "长标题优先",
+                        "url": "https://view.inews.qq.com/a/A1",
+                        "desc": "a" * 120, "heat": None}
+    assert items[1] == {"rank": 2, "title": "无简介条目",
+                        "url": "https://view.inews.qq.com/a/A2",
+                        "desc": "", "heat": None}
+
+
+def test_fetch_juejin_rows_and_err_raises():
+    sess = FakeSession(get_resp=FakeResp(json_data={"err_no": 0, "data": [
+        {"content": {"title": "文章A", "content_id": "7001", "brief": "简"}},
+        {"content": None},                                    # content 缺失 → 空对象跳过
+        {"content": {"title": "文章B", "content_id": ""}},    # 无 id → 无链接
+    ]}))
+    items = _with_session(sess, lambda: sources.fetch_juejin({}))
+    assert "api.juejin.cn" in sess.calls[0][1]
+    assert [i["rank"] for i in items] == [1, 2]
+    assert items[0] == {"rank": 1, "title": "文章A",
+                        "url": "https://juejin.cn/post/7001", "desc": "简", "heat": None}
+    assert items[1]["url"] == ""
+
+    err = FakeSession(get_resp=FakeResp(json_data={"err_no": 500, "err_msg": "boom"}))
+    with pytest.raises(RuntimeError, match="掘金"):
+        _with_session(err, lambda: sources.fetch_juejin({}))
+
+
+PH_ATOM = """<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <title>Product One</title>
+    <link rel="alternate" href="https://www.producthunt.com/products/one"/>
+    <summary>&lt;p&gt;Tagline one&lt;/p&gt;</summary>
+  </entry>
+  <entry>
+    <title>Product Two</title>
+    <link rel="alternate" href="https://www.producthunt.com/products/two"/>
+  </entry>
+</feed>"""
+
+
+def test_fetch_producthunt_reads_atom_feed():
+    sess = FakeSession(get_resp=FakeResp(text=PH_ATOM))
+    items = _with_session(sess, lambda: sources.fetch_producthunt({}))
+    assert sess.calls[0][1] == "https://www.producthunt.com/feed"
+    assert [i["title"] for i in items] == ["Product One", "Product Two"]
+    assert items[0]["url"] == "https://www.producthunt.com/products/one"
+    assert items[0]["desc"] == "Tagline one"  # HTML 已剥标签
+    assert items[0]["heat"] is None
+
+
 # ---------------------------------------------------------------- 注册表与包装
 
 def test_registry_shape():
-    assert len(sources.SOURCES) == 11
+    assert len(sources.SOURCES) == 16
     for key, meta in sources.SOURCES.items():
         assert callable(meta["fetch"])
         assert meta["cat"] in {"domestic", "world", "tech"}
-    assert set(sources.sources_of("tech")) == {"hackernews", "github", "v2ex"}
+    assert set(sources.sources_of("tech")) == {"hackernews", "github", "v2ex",
+                                               "juejin", "producthunt"}
 
 
 def test_gnews_and_nyt_wrap_rss_items():
