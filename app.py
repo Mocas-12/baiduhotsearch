@@ -431,7 +431,7 @@ def render_sidebar():
         st.header("设置")
         st.checkbox("使用示例数据（无网络预览）", key="use_sample")
         with st.expander("网络与数据接口", expanded=False):
-            st.caption("国内源经 60s API 聚合获取；百度源直连 top.baidu.com，海外网络通常需配置代理。")
+            st.caption("各源均直连第一方接口（微博、知乎免 Cookie），60s API 仅作兜底；海外网络通常需配置代理。")
             st.text_input("60s API 实例（可选，留空用内置实例）",
                           key="sixty_base", placeholder="https://your-instance.example.com")
             st.text_input("微博 Cookie（可选，直连被风控时填 SUB=... 更稳）",
