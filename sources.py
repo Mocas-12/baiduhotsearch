@@ -288,6 +288,33 @@ def _parse_cn_heat(text):
 
 
 def fetch_zhihu(cfg):
+    # 直连移动端开放 API 优先（www 端 v3 已要登录、网页对数据中心 IP 403），60s API 兜底
+    return _chain(_zhihu_direct, _zhihu_sixty)(cfg)
+
+
+def _zhihu_direct(cfg):
+    r = build_session(cfg).get("https://api.zhihu.com/topstory/hot-lists/total?limit=50",
+                               timeout=10)
+    r.raise_for_status()
+    data = r.json().get("data") or []
+    if not data:
+        raise RuntimeError("知乎接口返回异常")
+    return _collect(
+        data,
+        title_of=lambda it: str(((it.get("target") or {}).get("title")) or "").strip(),
+        url_of=lambda it, t: _zhihu_question_url((it.get("target") or {}).get("url")),
+        desc_of=lambda it, t: str(((it.get("target") or {}).get("excerpt")) or "").strip()[:120],
+        heat_of=lambda it, t: _parse_cn_heat(it.get("detail_text")),
+    )
+
+
+def _zhihu_question_url(api_url):
+    # api.zhihu.com/questions/{id} → www.zhihu.com/question/{id}
+    m = re.search(r"questions/(\d+)", str(api_url or ""))
+    return f"https://www.zhihu.com/question/{m.group(1)}" if m else ""
+
+
+def _zhihu_sixty(cfg):
     # 知乎数值热度在 hot_value_desc 文案（如「2678 万」）里，detail 作为简介
     return _collect(
         _sixty_get(cfg, "zhihu"),

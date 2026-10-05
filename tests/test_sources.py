@@ -574,6 +574,7 @@ def test_fetch_bilibili_falls_back_to_sixty():
 # ---------------------------------------------------------------- fetcher 级：zhihu
 
 def test_fetch_zhihu_cn_heat_and_detail():
+    # 直连通道被 IP 风控拦下 → 回退 60s API（hot_value_desc 文案解析）
     seen = {}
 
     def fake_sixty(cfg, endpoint):
@@ -583,17 +584,61 @@ def test_fetch_zhihu_cn_heat_and_detail():
                 {"title": "知乎B", "hot_value_desc": "1.2亿"},
                 {"title": "  ", "link": "http://skip"}]  # 空标题跳过 → 名次连续
 
-    old = sources._sixty_get
+    old_sixty = sources._sixty_get
     sources._sixty_get = fake_sixty
+    blocked = FakeSession(get_err=Exception("403 blocked"))
+    old_build = sources.build_session
+    sources.build_session = lambda cfg: blocked
     try:
         items = sources.fetch_zhihu({})
     finally:
-        sources._sixty_get = old
+        sources._sixty_get = old_sixty
+        sources.build_session = old_build
     assert seen["endpoint"] == "zhihu"
     assert [i["rank"] for i in items] == [1, 2]
     assert items[0] == {"rank": 1, "title": "知乎A", "url": "http://z1",
                         "desc": "简介A", "heat": 26780000.0}
     assert items[1]["desc"] == "" and items[1]["heat"] == 120000000.0
+
+
+# ---------------------------------------------------------------- fetcher 级：知乎直连
+
+def test_zhihu_direct_maps_mobile_api():
+    sess = FakeSession(get_resp=FakeResp(json_data={"data": [
+        {"type": "hot_list_feed", "detail_text": "1633 万热度",
+         "target": {"id": 2090468722427290967, "title": "知乎A",
+                    "url": "https://api.zhihu.com/questions/2090468722427290967",
+                    "excerpt": "摘录A"}},
+        {"type": "hot_list_feed", "detail_text": "热度数据缺失",
+         "target": {"id": 222, "title": "知乎B",
+                    "url": "https://api.zhihu.com/questions/222"}},  # 无 excerpt/异常文案
+        {"type": "hot_list_feed", "detail_text": "1.2亿",
+         "target": {"id": 333, "title": "", "url": ""}},        # 空标题跳过
+    ]}))
+    old = sources.build_session
+    sources.build_session = lambda cfg: sess
+    try:
+        items = sources._zhihu_direct({})
+    finally:
+        sources.build_session = old
+    assert "api.zhihu.com/topstory/hot-lists/total" in sess.calls[0][1]
+    assert [i["rank"] for i in items] == [1, 2]
+    assert items[0] == {"rank": 1, "title": "知乎A",
+                        "url": "https://www.zhihu.com/question/2090468722427290967",
+                        "desc": "摘录A", "heat": 16330000.0}
+    assert items[1]["url"] == "https://www.zhihu.com/question/222"
+    assert items[1]["desc"] == "" and items[1]["heat"] is None
+
+
+def test_zhihu_direct_empty_raises():
+    sess = FakeSession(get_resp=FakeResp(json_data={"data": [], "fresh_text": "x"}))
+    old = sources.build_session
+    sources.build_session = lambda cfg: sess
+    try:
+        with pytest.raises(RuntimeError, match="知乎"):
+            sources._zhihu_direct({})
+    finally:
+        sources.build_session = old
 
 
 # ---------------------------------------------------------------- fetcher 级：hackernews
