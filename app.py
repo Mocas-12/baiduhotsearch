@@ -353,7 +353,6 @@ def render_nav():
           <span class="hs-logo">
             <span class="hs-logo-mark"></span>
             <span class="hs-logo-word">HOTRADAR</span>
-            <span class="hs-logo-sub">LIVE</span>
           </span>
           <span class="spacer"></span>
           <a href="https://s.weibo.com/top/summary" target="_blank">微博</a>

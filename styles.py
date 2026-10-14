@@ -104,16 +104,6 @@ def apply_theme():
           width: 6px; height: 6px; border-radius: 50%; background: #fff;
         }
         .hs-logo-word{ font-size: 15.5px; font-weight: 700; letter-spacing: .3px; color: var(--hs-text) !important; }
-        .hs-logo-sub{
-          position: relative; display: inline-flex; align-items: center; gap: 6px;
-          font-size: 10px; font-weight: 800; letter-spacing: 1.8px;
-          color: var(--hs-red-soft) !important;
-          background: rgba(255,69,58,.14); padding: 4px 11px; border-radius: 99px;
-        }
-        .hs-logo-sub::before{
-          content: ""; width: 5px; height: 5px; border-radius: 50%;
-          background: var(--hs-red-soft); animation: hs-pulse 1.8s infinite;
-        }
         .hs-nav .spacer{ margin-right: auto; }
         .hs-nav a{
           color: var(--hs-text-2) !important; text-decoration: none !important;
