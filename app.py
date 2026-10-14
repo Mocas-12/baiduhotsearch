@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""HOTRADAR · 全网热搜雷达 —— 国内热点 · 国际大事 · 科技动态，一页看清。
+"""HOTRADAR · Hot Search Radar —— 国内热点 · 国际大事 · 科技动态，一页看清。
 
 多源聚合架构：
     sources.py   数据源注册表与抓取器（统一 schema）
@@ -23,7 +23,7 @@ import sources
 import store
 from styles import apply_theme
 
-st.set_page_config(page_title="HOTRADAR · 全网热搜雷达", page_icon="📡",
+st.set_page_config(page_title="HOTRADAR · Hot Search Radar", page_icon="📡",
                    layout="wide", initial_sidebar_state="collapsed")
 
 CACHE_TTL = 900   # 成功结果缓存 15 分钟
@@ -410,7 +410,7 @@ def render_hero(n_sources: int) -> bool:
     with head_l:
         st.markdown(f'<div class="hs-overline"><span class="dot"></span>'
                     f'LIVE · {n_sources} 源实时聚合</div>', unsafe_allow_html=True)
-        st.markdown('<div class="hs-h1">全网热搜雷达</div>', unsafe_allow_html=True)
+        st.markdown('<div class="hs-h1">Hot Search Radar</div>', unsafe_allow_html=True)
         st.markdown('<div class="hs-tagline">国内热点 · 国际大事 · 科技动态 —— 一页看清全网正在发生的事</div>',
                     unsafe_allow_html=True)
     with head_r:
