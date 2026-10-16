@@ -13,7 +13,7 @@ def apply_theme():
         :root{
           --hs-hairline: rgba(255,255,255,.08);
           --hs-hairline-hi: rgba(255,255,255,.14);
-          --hs-glass: rgba(28,28,32,.55);
+          --hs-glass: rgba(42,44,52,.46);
           --hs-fill: rgba(255,255,255,.05);
           --hs-text: #f5f5f7;
           --hs-text-2: #a1a1aa;
@@ -35,8 +35,8 @@ def apply_theme():
 
         [data-testid="stAppViewContainer"]{
           background:
-            radial-gradient(1100px 620px at 82% -12%, rgba(90,90,220,.08), transparent 62%),
-            radial-gradient(900px 560px at -8% 8%, rgba(255,69,58,.055), transparent 58%),
+            radial-gradient(900px 480px at 72% 2%, rgba(135,145,190,.16), transparent 64%),
+            radial-gradient(720px 440px at 12% 8%, rgba(255,69,58,.045), transparent 62%),
             linear-gradient(180deg, #0b0b0e 0%, #101014 100%);
           background-attachment: fixed;
         }
@@ -82,9 +82,9 @@ def apply_theme():
           border: 1px solid var(--hs-hairline);
           border-radius: 18px;
           height: 56px; display: flex; align-items: center;
-          box-shadow: 0 10px 36px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.06);
-          backdrop-filter: blur(24px) saturate(1.8);
-          -webkit-backdrop-filter: blur(24px) saturate(1.8);
+          box-shadow: 0 14px 42px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.14);
+          backdrop-filter: blur(32px) saturate(1.65);
+          -webkit-backdrop-filter: blur(32px) saturate(1.65);
         }
         .hs-nav-inner{ display: flex; align-items: center; gap: 20px; width: 100%; }
         .hs-logo{ display: flex; align-items: center; gap: 11px; }
@@ -116,13 +116,12 @@ def apply_theme():
         /* ===== 跑马灯资讯条 ===== */
         .hs-ticker{
           position: relative; z-index: 1;
-          background: var(--hs-glass);
-          border: 1px solid var(--hs-hairline); border-radius: 13px;
+          background: transparent;
+          border: 0; border-radius: 0;
           color: var(--hs-text-2);
           overflow: hidden; height: 38px; display: flex; align-items: center;
           margin: 4px 0 2px;
-          backdrop-filter: blur(20px) saturate(1.6);
-          -webkit-backdrop-filter: blur(20px) saturate(1.6);
+          border-bottom: 1px solid var(--hs-hairline);
         }
         .hs-ticker-track{
           display: inline-flex; white-space: nowrap; align-items: center;
@@ -194,17 +193,18 @@ def apply_theme():
         .hs-thead .r{ text-align: right; }
         .hs-row{
           position: relative;
-          border-radius: 14px; text-decoration: none !important;
-          background: rgba(255,255,255,.035);
+          border-radius: 10px; text-decoration: none !important;
+          background: transparent;
           border: 1px solid transparent;
-          margin-bottom: 7px;
+          border-bottom-color: var(--hs-hairline);
+          margin-bottom: 2px;
           transition: background .15s, border-color .15s, transform .15s;
         }
         .hs-row[href]{ cursor: pointer; }
         .hs-row:hover{
-          background: rgba(255,255,255,.065);
-          border-color: var(--hs-hairline);
-          transform: translateY(-1px);
+          background: rgba(255,255,255,.045);
+          border-color: transparent;
+          transform: none;
         }
         .hs-row .rank{
           font-size: 15px; font-weight: 700; text-align: center;
@@ -256,7 +256,7 @@ def apply_theme():
           padding: 3px 10px; border-radius: 99px;
           font-size: 11.5px; font-weight: 600; line-height: 1.5; white-space: nowrap;
           color: var(--c, var(--hs-text-2)) !important;
-          background: color-mix(in srgb, var(--c, #a1a1aa) 15%, transparent);
+          background: color-mix(in srgb, var(--c, #a1a1aa) 10%, transparent);
         }
         .src-badge i{
           width: 5px; height: 5px; border-radius: 50%; flex: none;
@@ -508,3 +508,5 @@ def apply_theme():
         """,
         unsafe_allow_html=True,
     )
+
+
