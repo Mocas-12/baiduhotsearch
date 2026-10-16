@@ -13,7 +13,7 @@ def apply_theme():
         :root{
           --hs-hairline: rgba(255,255,255,.08);
           --hs-hairline-hi: rgba(255,255,255,.14);
-          --hs-glass: rgba(42,44,52,.46);
+          --hs-glass: rgba(58,62,76,.34);
           --hs-fill: rgba(255,255,255,.05);
           --hs-text: #f5f5f7;
           --hs-text-2: #a1a1aa;
@@ -35,8 +35,8 @@ def apply_theme():
 
         [data-testid="stAppViewContainer"]{
           background:
-            radial-gradient(900px 480px at 72% 2%, rgba(135,145,190,.16), transparent 64%),
-            radial-gradient(720px 440px at 12% 8%, rgba(255,69,58,.045), transparent 62%),
+            radial-gradient(980px 540px at 72% 2%, rgba(145,158,205,.28), transparent 64%),
+            radial-gradient(760px 460px at 12% 8%, rgba(255,69,58,.075), transparent 62%),
             linear-gradient(180deg, #0b0b0e 0%, #101014 100%);
           background-attachment: fixed;
         }
@@ -76,15 +76,15 @@ def apply_theme():
         /* ===== 磨砂导航栏 ===== */
         .hs-nav{
           position: relative; z-index: 1;
-          background: var(--hs-glass);
           margin: 12px 0 4px;
           padding: 0 20px;
-          border: 1px solid var(--hs-hairline);
+          border: 1px solid rgba(255,255,255,.18);
           border-radius: 18px;
           height: 56px; display: flex; align-items: center;
-          box-shadow: 0 14px 42px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.14);
-          backdrop-filter: blur(32px) saturate(1.65);
-          -webkit-backdrop-filter: blur(32px) saturate(1.65);
+          background: linear-gradient(112deg, rgba(255,255,255,.13), rgba(255,255,255,.025) 42%, rgba(157,172,220,.13)), var(--hs-glass);
+          box-shadow: 0 16px 44px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.24), inset 0 -1px 0 rgba(255,255,255,.04);
+          backdrop-filter: blur(42px) saturate(1.8);
+          -webkit-backdrop-filter: blur(42px) saturate(1.8);
         }
         .hs-nav-inner{ display: flex; align-items: center; gap: 20px; width: 100%; }
         .hs-logo{ display: flex; align-items: center; gap: 11px; }
@@ -333,8 +333,12 @@ def apply_theme():
         /* ===== iOS 风分段切换控件（stRadio react-aria DOM） ===== */
         [data-testid="stRadioGroup"]{
           display: inline-flex; flex-wrap: wrap; gap: 2px;
-          background: rgba(118,118,128,.22);
+          background: rgba(118,122,140,.19);
+          border: 1px solid rgba(255,255,255,.14);
           border-radius: 11px; padding: 3px;
+          box-shadow: inset 0 1px 0 rgba(255,255,255,.1), 0 8px 24px rgba(0,0,0,.14);
+          backdrop-filter: blur(24px) saturate(1.65);
+          -webkit-backdrop-filter: blur(24px) saturate(1.65);
         }
         [data-testid="stRadioOption"]{
           border-radius: 8.5px; padding: 7px 16px !important; margin: 0 !important;
@@ -344,8 +348,9 @@ def apply_theme():
         [data-testid="stRadioOption"]:hover{ background: rgba(255,255,255,.06) !important; }
         [data-testid="stRadioOption"] p{ font-size: 13px; font-weight: 500; color: var(--hs-text-2) !important; }
         [data-testid="stRadioOption"][data-selected="true"]{
-          background: rgba(128,130,138,.62) !important;
-          box-shadow: 0 2px 8px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.12);
+          background: rgba(218,224,241,.24) !important;
+          border: 1px solid rgba(255,255,255,.2) !important;
+          box-shadow: 0 2px 10px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.24);
         }
         [data-testid="stRadioOption"][data-selected="true"] p{ color: #fff !important; font-weight: 600; }
         [data-testid="stRadioOption"] > div > div > div:first-child{ display: none; }
