@@ -386,7 +386,7 @@ def fetch_baidu(cfg):
                       "Accept": "application/json, text/plain, */*"})
     r = s.get("https://top.baidu.com/api/board?platform=pc&tab=realtime", timeout=10)
     r.raise_for_status()
-    cards = r.json().get("data", {}).get("cards", [])
+    cards = (r.json().get("data") or {}).get("cards", [])
     ranked, pinned, seen = [], [], set()
 
     def collect(it, bucket):

@@ -195,7 +195,7 @@ def _row(rank: int, word: str, desc_html: str, pills_html: str, meta_html: str, 
             f'<span class="hmeta">{meta_html}</span></a>')
 
 
-def _panel(meta_line: str, view_key: str, thead: str, rows: list,
+def _panel(view_key: str, thead: str, rows: list,
            empty_title: str, empty_sub: str):
     title, sub = SECTION_META[view_key]
     head = (f'<div class="hs-section">{title}<span class="sub">{sub}</span></div>')
@@ -205,7 +205,7 @@ def _panel(meta_line: str, view_key: str, thead: str, rows: list,
                 f'<div class="esub">{empty_sub}</div></div>')
     else:
         body = f'{head}{thead}{"".join(rows)}'
-    st.markdown(meta_line + f'<div class="hs-panel">{body}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="hs-panel">{body}</div>', unsafe_allow_html=True)
 
 
 def render_meta_line(results: dict, keys: list, view_label: str, n_items: int, n_sources: int,
@@ -268,7 +268,7 @@ def render_category(view_key: str, sub: str, topn: int, force: bool):
         word, desc_html, link = _word_parts(it)
         rows.append(_row(i, word, desc_html, pills, _onboard_meta(it), link))
 
-    _panel("", view_key,
+    _panel(view_key,
            '<div class="hs-thead"><span>词条</span><span class="r">在榜状态</span></div>',
            rows, "暂时没有拿到数据",
            "点击「立即刷新」重试，或稍后再来看看")
@@ -338,7 +338,7 @@ def render_cross(topn: int, force: bool):
         word, desc_html, link = _word_parts(c)
         rows.append(_row(i, word, desc_html, pills, meta, link))
 
-    _panel("", "cross",
+    _panel("cross",
            '<div class="hs-thead"><span>话题</span><span class="r">命中源</span></div>',
            rows, "暂时没有交叉话题",
            "各榜单对齐需要时间，稍后再试试")
