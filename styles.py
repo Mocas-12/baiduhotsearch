@@ -13,7 +13,7 @@ def apply_theme():
         :root{
           --hs-hairline: rgba(255,255,255,.08);
           --hs-hairline-hi: rgba(255,255,255,.14);
-          --hs-glass: rgba(58,62,76,.34);
+          --hs-glass: rgba(31,33,39,.48);
           --hs-fill: rgba(255,255,255,.05);
           --hs-text: #f5f5f7;
           --hs-text-2: #a1a1aa;
@@ -35,8 +35,7 @@ def apply_theme():
 
         [data-testid="stAppViewContainer"]{
           background:
-            radial-gradient(980px 540px at 72% 2%, rgba(145,158,205,.28), transparent 64%),
-            radial-gradient(760px 460px at 12% 8%, rgba(255,69,58,.075), transparent 62%),
+            radial-gradient(980px 540px at 72% 2%, rgba(145,158,205,.12), transparent 64%),
             linear-gradient(180deg, #0b0b0e 0%, #101014 100%);
           background-attachment: fixed;
         }
@@ -78,32 +77,17 @@ def apply_theme():
           position: relative; z-index: 1;
           margin: 12px 0 4px;
           padding: 0 20px;
-          border: 1px solid rgba(255,255,255,.18);
-          border-radius: 18px;
-          height: 56px; display: flex; align-items: center;
-          background: linear-gradient(112deg, rgba(255,255,255,.13), rgba(255,255,255,.025) 42%, rgba(157,172,220,.13)), var(--hs-glass);
-          box-shadow: 0 16px 44px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.24), inset 0 -1px 0 rgba(255,255,255,.04);
-          backdrop-filter: blur(42px) saturate(1.8);
-          -webkit-backdrop-filter: blur(42px) saturate(1.8);
+          border: 1px solid rgba(255,255,255,.09);
+          border-radius: 14px;
+          height: 52px; display: flex; align-items: center;
+          background: var(--hs-glass);
+          box-shadow: 0 8px 28px rgba(0,0,0,.2), inset 0 1px 0 rgba(255,255,255,.08);
+          backdrop-filter: blur(28px) saturate(1.35);
+          -webkit-backdrop-filter: blur(28px) saturate(1.35);
         }
         .hs-nav-inner{ display: flex; align-items: center; gap: 20px; width: 100%; }
         .hs-logo{ display: flex; align-items: center; gap: 11px; }
-        /* App 图标式徽标：红渐变圆角方块 + 白色雷达点环 */
-        .hs-logo-mark{
-          position: relative; width: 26px; height: 26px; border-radius: 7.5px; flex: none;
-          background: linear-gradient(135deg, #ff7a6b, #ff453a 70%);
-          box-shadow: 0 3px 10px rgba(255,69,58,.35), inset 0 1px 0 rgba(255,255,255,.28);
-        }
-        .hs-logo-mark::before{
-          content: ""; position: absolute; inset: 0; margin: auto;
-          width: 15px; height: 15px; border-radius: 50%;
-          border: 1.5px solid rgba(255,255,255,.75);
-        }
-        .hs-logo-mark::after{
-          content: ""; position: absolute; inset: 0; margin: auto;
-          width: 6px; height: 6px; border-radius: 50%; background: #fff;
-        }
-        .hs-logo-word{ font-size: 15.5px; font-weight: 700; letter-spacing: .3px; color: var(--hs-text) !important; }
+        .hs-logo-word{ font-size: 14px; font-weight: 600; letter-spacing: .04em; color: var(--hs-text) !important; }
         .hs-nav .spacer{ margin-right: auto; }
         .hs-nav a{
           color: var(--hs-text-2) !important; text-decoration: none !important;
@@ -139,25 +123,14 @@ def apply_theme():
         .hs-ticker .ti strong{ color: var(--hs-text) !important; font-weight: 500; }
 
         /* ===== 标题区 ===== */
-        .hs-overline{
-          display: flex; align-items: center; gap: 9px;
-          font-size: 12.5px; font-weight: 600; letter-spacing: .4px;
-          color: var(--hs-text-2) !important; margin: 20px 0 8px;
-        }
-        .hs-overline .dot, .hs-meta-line .dot{
+        .hs-meta-line .dot{
           width: 7px; height: 7px; border-radius: 50%; flex: none;
         }
-        .hs-overline .dot{
-          background: var(--hs-red);
-          box-shadow: 0 0 8px rgba(255,69,58,.8);
-          animation: hs-pulse 1.8s infinite;
-        }
-        @keyframes hs-pulse{ 50%{ opacity: .35; } }
         .hs-h1{
-          font-size: clamp(30px, 4vw, 40px); font-weight: 700; letter-spacing: -.4px;
-          line-height: 1.1; color: var(--hs-text) !important; margin: 0;
+          font-size: clamp(28px, 3.2vw, 34px); font-weight: 650; letter-spacing: -.5px;
+          line-height: 1.2; color: var(--hs-text) !important; margin: 0;
         }
-        .hs-tagline{ color: var(--hs-text-2) !important; font-size: 14.5px; margin: 8px 0 2px; }
+        .hs-tagline{ color: var(--hs-text-2) !important; font-size: 14px; line-height: 1.65; margin: 7px 0 2px; }
 
         /* ===== 元信息行 ===== */
         .hs-meta-line{
@@ -167,8 +140,7 @@ def apply_theme():
         }
         .hs-meta-line .dot{
           background: var(--hs-green);
-          box-shadow: 0 0 7px rgba(48,209,88,.7);
-          animation: hs-pulse 1.8s infinite;
+          box-shadow: 0 0 5px rgba(48,209,88,.38);
         }
         .hs-meta-line b{ color: var(--hs-text) !important; font-weight: 600; }
 
