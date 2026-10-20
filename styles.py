@@ -127,7 +127,7 @@ def apply_theme():
           width: 7px; height: 7px; border-radius: 50%; flex: none;
         }
         .hs-h1{
-          font-size: clamp(28px, 3.2vw, 34px); font-weight: 650; letter-spacing: -.5px;
+          font-size: clamp(28px, 3.2vw, 32px); font-weight: 600; letter-spacing: 0;
           line-height: 1.2; color: var(--hs-text) !important; margin: 0;
         }
         .hs-tagline{ color: var(--hs-text-2) !important; font-size: 14px; line-height: 1.65; margin: 7px 0 2px; }
@@ -184,9 +184,9 @@ def apply_theme():
           font-variant-numeric: tabular-nums;
           transition: color .15s;
         }
-        .hs-row .rank.r1{ color: var(--hs-red-soft) !important; }
-        .hs-row .rank.r2{ color: var(--hs-orange) !important; }
-        .hs-row .rank.r3{ color: var(--hs-yellow) !important; }
+        .hs-row .rank.r1{ color: #e6c477 !important; }
+        .hs-row .rank.r2{ color: #bec6d1 !important; }
+        .hs-row .rank.r3{ color: #c68b68 !important; }
         .hs-row .rank.r1, .hs-row .rank.r2, .hs-row .rank.r3{ font-size: 16.5px; }
         .hs-row .hword{
           color: #ececf0 !important; font-size: 15px; font-weight: 600; line-height: 1.4;
