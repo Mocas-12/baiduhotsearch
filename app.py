@@ -23,7 +23,7 @@ import sources
 import store
 from styles import apply_theme
 
-st.set_page_config(page_title="HOTRADAR · Hot Search Radar", page_icon="📡",
+st.set_page_config(page_title="HOTRADAR · 此刻热议", page_icon="📡",
                    layout="wide", initial_sidebar_state="collapsed")
 
 CACHE_TTL = 900   # 成功结果缓存 15 分钟
@@ -122,11 +122,27 @@ def _cache_kind(res: dict) -> str:
     return "ok" if res.get("ok") and res.get("items") else "fail"
 
 
-def get_sources(keys: list, force: bool = False) -> dict:
+def _stale_seed(key: str, cached: Optional[dict]) -> Optional[dict]:
+    """Return the latest available data for an immediate first render."""
+    if cached and cached.get("kind") in ("ok", "stale") and cached.get("items"):
+        return {"ok": True, "items": cached["items"], "stale": True, "ts": cached["ts"]}
+    try:
+        snap_ts, items = store.last_snapshot(key)
+        if items:
+            for item in items:
+                item["_first_seen"] = snap_ts
+            return {"ok": True, "items": items, "stale": True, "ts": snap_ts.timestamp()}
+    except Exception:
+        pass
+    return None
+
+
+def get_sources(keys: list, force: bool = False, on_progress=None) -> dict:
     """批量获取，返回 {source_key: result}。
 
     缓存分四类：ok 按 CACHE_TTL；stale/fail/sample 按 FAIL_TTL 短缓存——
     既不反复冲击限流接口，又保证 2 分钟后自动重试。force=True 时全部重抓。
+    重抓时先把旧快照交给 on_progress，再按来源完成顺序增量更新页面。
     """
     cache_all = st.session_state.setdefault("data_cache", {})
     results = {}
@@ -144,8 +160,14 @@ def get_sources(keys: list, force: bool = False) -> dict:
             results[k] = res
             continue
         todo.append(k)
+        seed = _stale_seed(k, c)
+        if seed:
+            results[k] = seed
+    if on_progress:
+        on_progress(dict(results), 0, len(todo))
     if todo:
         cfg, use_sample = _cfg(), st.session_state.get("use_sample", False)
+        completed = 0
         with ThreadPoolExecutor(max_workers=4) as ex:  # 4 并发 + 60s API 错峰，控制对公共实例的瞬时压力
             futs = {ex.submit(_fetch_one, k, cfg, use_sample, cache_all.get(k)): k for k in todo}
             for fut in as_completed(futs):
@@ -157,6 +179,9 @@ def get_sources(keys: list, force: bool = False) -> dict:
                 results[k] = res
                 cache_all[k] = {"ts": res["ts"], "items": res.get("items") or [],
                                 "kind": _cache_kind(res)}
+                completed += 1
+                if on_progress:
+                    on_progress(dict(results), completed, len(todo))
     return results
 
 
@@ -241,8 +266,21 @@ def _warn_states(results: dict, keys: list):
 def render_category(view_key: str, sub: str, topn: int, force: bool):
     all_keys = _view_sources(view_key)
     keys = all_keys if sub == "全部" else [k for k in all_keys if sources.SOURCES[k]["name"] == sub]
-    results = get_sources(keys, force=force)
-    _warn_states(results, keys)
+
+    slot = st.empty()
+    def update(results, done, total):
+        with slot.container():
+            if done < total:
+                st.caption(f"正在同步数据源 {done}/{total}，榜单会随着来源到达继续更新。")
+            _render_category_results(view_key, sub, topn, results, keys, final=done >= total)
+
+    get_sources(keys, force=force, on_progress=update)
+
+
+def _render_category_results(view_key: str, sub: str, topn: int,
+                             results: dict, keys: list, final: bool):
+    if final:
+        _warn_states(results, keys)
 
     if sub == "全部":  # 多源按名次轮播交错，形成「混合热流」
         lists = [results[k]["items"] for k in keys if results.get(k, {}).get("ok")]
@@ -286,8 +324,20 @@ def _find_source_key(results: dict, item: dict) -> Optional[str]:
 
 def render_cross(topn: int, force: bool):
     keys = _view_sources("cross")
-    results = get_sources(keys, force=force)
-    _warn_states(results, keys)
+
+    slot = st.empty()
+    def update(results, done, total):
+        with slot.container():
+            if done < total:
+                st.caption(f"正在同步数据源 {done}/{total}，榜单会随着来源到达继续更新。")
+            _render_cross_results(topn, results, keys, final=done >= total)
+
+    get_sources(keys, force=force, on_progress=update)
+
+
+def _render_cross_results(topn: int, results: dict, keys: list, final: bool):
+    if final:
+        _warn_states(results, keys)
 
     # 各源内部的最大热度（统一口径用：词条的榜内相对位置 = heat / 源内最大值）
     src_max = {k: max((it.get("heat") or 0 for it in r.get("items", [])), default=0)
@@ -311,7 +361,7 @@ def render_cross(topn: int, force: bool):
     ok_sources = len([k for k, r in results.items() if r.get("ok") and r.get("items")])
     render_meta_line(results, keys, "全网交叉榜", len(clusters), ok_sources, item_label="交叉话题")
 
-    if not clusters:
+    if not clusters and final:
         down = [sources.SOURCES[k]["name"] for k in keys
                 if not (results.get(k, {}).get("ok") and results.get(k, {}).get("items"))]
         if down:
@@ -340,8 +390,8 @@ def render_cross(topn: int, force: bool):
 
     _panel("cross",
            '<div class="hs-thead"><span>话题</span><span class="r">命中源</span></div>',
-           rows, "暂时没有交叉话题",
-           "各榜单对齐需要时间，稍后再试试")
+           rows, "正在收集跨源话题" if not final else "暂时没有交叉话题",
+           "来源陆续返回后，榜单会自动更新" if not final else "各榜单对齐需要时间，稍后再试试")
 
 
 # ---------------------------------------------------------------- 顶部：导航 / 跑马灯 / 标题
@@ -365,18 +415,6 @@ def render_nav():
     )
 
 
-def _warm_ticker_cache():
-    """跑马灯预热：缓存全空时先抓 4 个国内源（与主视图共享缓存），
-    让跑马灯首帧就有内容滚动；已有点位则直接返回，不加首屏延迟。"""
-    cache = st.session_state.get("data_cache") or {}
-    if any(cache.get(k, {}).get("kind") in ("ok", "stale") for k in TICKER_KEYS):
-        return
-    try:
-        get_sources(list(TICKER_KEYS), force=False)
-    except Exception:
-        pass
-
-
 @st.fragment(run_every="60s")
 def render_ticker():
     """跑马灯：只读会话缓存，不触发抓取——首帧不阻塞，数据就绪后自动填充。"""
@@ -394,7 +432,7 @@ def render_ticker():
                              f'<strong>{html.escape(w)}</strong></span>')
     if not parts:
         st.markdown('<div class="hs-ticker"><div class="hs-ticker-track static">'
-                    '<span class="ti">正在同步全网热搜 · 首屏加载约几秒，稍候片刻…</span>'
+                    '<span class="ti">实时热点正在同步</span>'
                     "</div></div>",
                     unsafe_allow_html=True)
         return
@@ -406,7 +444,7 @@ def render_ticker():
 def render_hero(n_sources: int) -> bool:
     head_l, head_r = st.columns([4, 1], vertical_alignment="center")
     with head_l:
-        st.markdown('<div class="hs-h1">全网热榜</div>', unsafe_allow_html=True)
+        st.markdown('<div class="hs-h1">此刻热议</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="hs-tagline">聚合 {n_sources} 个公开信息源，覆盖国内、国际与科技热点。</div>',
                     unsafe_allow_html=True)
     with head_r:
@@ -555,7 +593,6 @@ def main():
     render_sidebar()
     render_nav()
     force = render_hero(len(sources.SOURCES))
-    _warm_ticker_cache()
     render_ticker()
 
     cols = st.columns([2.4, 1], vertical_alignment="center")
