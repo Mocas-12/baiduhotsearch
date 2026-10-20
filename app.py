@@ -351,8 +351,7 @@ def render_nav():
         """
         <div class="hs-nav"><div class="hs-nav-inner">
           <span class="hs-logo">
-            <span class="hs-logo-mark"></span>
-            <span class="hs-logo-word">HOTRADAR</span>
+            <span class="hs-logo-word">HotRadar</span>
           </span>
           <span class="spacer"></span>
           <a href="https://s.weibo.com/top/summary" target="_blank">微博</a>
@@ -407,13 +406,11 @@ def render_ticker():
 def render_hero(n_sources: int) -> bool:
     head_l, head_r = st.columns([4, 1], vertical_alignment="center")
     with head_l:
-        st.markdown(f'<div class="hs-overline"><span class="dot"></span>'
-                    f'LIVE · {n_sources} 源实时聚合</div>', unsafe_allow_html=True)
-        st.markdown('<div class="hs-h1">Hot Search Radar</div>', unsafe_allow_html=True)
-        st.markdown('<div class="hs-tagline">国内热点 · 国际大事 · 科技动态 —— 一页看清全网正在发生的事</div>',
+        st.markdown('<div class="hs-h1">全网热榜</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="hs-tagline">聚合 {n_sources} 个公开信息源，覆盖国内、国际与科技热点。</div>',
                     unsafe_allow_html=True)
     with head_r:
-        return st.button("↻ 立即刷新", type="primary", use_container_width=True)
+        return st.button("刷新数据", type="primary", use_container_width=True)
 
 
 # ---------------------------------------------------------------- 侧边栏
@@ -557,10 +554,9 @@ def main():
     apply_theme()
     render_sidebar()
     render_nav()
+    force = render_hero(len(sources.SOURCES))
     _warm_ticker_cache()
     render_ticker()
-
-    force = render_hero(len(sources.SOURCES))
 
     cols = st.columns([2.4, 1], vertical_alignment="center")
     with cols[0]:
