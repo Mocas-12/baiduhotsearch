@@ -432,7 +432,7 @@ def render_ticker():
                              f'<strong>{html.escape(w)}</strong></span>')
     if not parts:
         st.markdown('<div class="hs-ticker"><div class="hs-ticker-track static">'
-                    '<span class="ti">正在同步全网热搜 · 首屏加载约几秒，稍候片刻…</span>'
+                    '<span class="ti">实时热点正在同步</span>'
                     "</div></div>",
                     unsafe_allow_html=True)
         return
