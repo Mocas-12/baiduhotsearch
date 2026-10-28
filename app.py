@@ -5,7 +5,7 @@
     sources.py   数据源注册表与抓取器（统一 schema）
     aggregate.py 跨源交叉榜聚类
     store.py     SQLite 历史快照（新上榜 / 上榜时长）
-    styles.py    主题样式（PULSE GLASS 苹果生态风）
+    styles.py    新闻索引主题与组件样式
 """
 import html
 import os
@@ -32,10 +32,10 @@ VIEW_LABELS = ["交叉榜", "国内", "国际", "科技"]
 VIEW_KEYS = {"交叉榜": "cross", "国内": "domestic", "国际": "world", "科技": "tech"}
 KEY_LABELS = {v: k for k, v in VIEW_KEYS.items()}
 SECTION_META = {
-    "cross": ("全网交叉焦点", "CROSS-SOURCE FOCUS · 按命中源数排序 · 不跨源比热度"),
-    "domestic": ("国内热流", "DOMESTIC PULSE"),
-    "world": ("国际动态", "GLOBAL PULSE"),
-    "tech": ("科技雷达", "TECH PULSE"),
+    "cross": ("全网交叉焦点", "按命中源数排序，不跨源比较热度"),
+    "domestic": ("国内热流", "国内平台共同关注的话题"),
+    "world": ("国际动态", "国际新闻与跨国动态"),
+    "tech": ("科技雷达", "开发者社区与技术趋势"),
 }
 TICKER_KEYS = ("weibo", "zhihu", "baidu", "douyin")
 
@@ -73,7 +73,7 @@ def _luma(color: str, floor: float = 0.30, boost: float = 0.62) -> str:
 
 
 def _src_badge(name: str, color: str) -> str:
-    return f'<span class="src-badge" style="--c:{_luma(color)}"><i></i>{html.escape(name)}</span>'
+    return f'<span class="src-badge" style="--c:{_luma(color)}">{html.escape(name)}</span>'
 
 
 # ---------------------------------------------------------------- 数据获取（每源缓存 + 失败降级）
@@ -205,7 +205,7 @@ def _word_parts(item: dict) -> tuple:
 def _onboard_meta(item: dict) -> str:
     fs = item.get("_first_seen")
     if fs is None:
-        return '<span class="tag-new">NEW 上榜</span>'
+        return '<span class="tag-new">新上榜</span>'
     hours = max(0.0, (time.time() - fs.timestamp()) / 3600)
     label = f"在榜 {hours:.0f} 小时" if hours >= 1 else "在榜不足 1 小时"
     return f'<span class="onboard">{label}</span>'
@@ -223,7 +223,7 @@ def _row(rank: int, word: str, desc_html: str, pills_html: str, meta_html: str, 
 def _panel(view_key: str, thead: str, rows: list,
            empty_title: str, empty_sub: str):
     title, sub = SECTION_META[view_key]
-    head = (f'<div class="hs-section">{title}<span class="sub">{sub}</span></div>')
+    head = (f'<h2 class="hs-section">{title}<span class="sub">{sub}</span></h2>')
     if not rows:
         body = (f'{head}<div class="hs-empty">'
                 f'<div class="etitle">{empty_title}</div>'
@@ -242,7 +242,7 @@ def render_meta_line(results: dict, keys: list, view_label: str, n_items: int, n
     parts.append(f'{item_label} <b>{n_items}</b> 条')
     parts.append(f'<b>{n_sources}</b> 个数据源在线')
     parts.append(html.escape(view_label))
-    st.markdown('<div class="hs-meta-line"><span class="dot"></span>' + " · ".join(parts) + "</div>",
+    st.markdown('<div class="hs-meta-line">' + "".join(f"<span>{part}</span>" for part in parts) + "</div>",
                 unsafe_allow_html=True)
 
 
@@ -295,7 +295,7 @@ def _render_category_results(view_key: str, sub: str, topn: int,
         shown = (results.get(keys[0], {}).get("items") or [])[:topn] if keys else []
         n_sources = 1 if shown else 0
 
-    render_meta_line(results, keys, f"{KEY_LABELS[view_key]} · {sub}", len(shown), n_sources)
+    render_meta_line(results, keys, f"{KEY_LABELS[view_key]}：{sub}", len(shown), n_sources)
 
     rows = []
     for i, it in enumerate(shown, 1):
@@ -309,7 +309,7 @@ def _render_category_results(view_key: str, sub: str, topn: int,
     _panel(view_key,
            '<div class="hs-thead"><span>词条</span><span class="r">在榜状态</span></div>',
            rows, "暂时没有拿到数据",
-           "点击「立即刷新」重试，或稍后再来看看")
+           "点击「刷新数据」重试，或稍后再来看看")
 
 
 def _find_source_key(results: dict, item: dict) -> Optional[str]:
@@ -367,7 +367,7 @@ def _render_cross_results(topn: int, results: dict, keys: list, final: bool):
         if down:
             st.warning(
                 f"暂时没有交叉话题：当前有 {len(down)} 个源不可用（{'、'.join(down)}），"
-                f"命中源越少，能配对的交叉话题就越少。可点击「立即刷新」重试；"
+                f"命中源越少，能配对的交叉话题就越少。可点击「刷新数据」重试；"
                 f"若公共实例持续限流，可在侧边栏填入自部署 60s API 实例地址。")
         else:
             st.info("暂时没有发现跨源同热的焦点事件（各榜单可能还没对齐，稍后再试试）")
@@ -437,14 +437,14 @@ def render_ticker():
                     unsafe_allow_html=True)
         return
     seq = "".join(parts)
-    st.markdown(f'<div class="hs-ticker"><div class="hs-ticker-track">{seq}{seq}</div></div>',
+    st.markdown(f'<div class="hs-ticker"><div class="hs-ticker-track">{seq}</div></div>',
                 unsafe_allow_html=True)
 
 
 def render_hero(n_sources: int) -> bool:
     head_l, head_r = st.columns([4, 1], vertical_alignment="center")
     with head_l:
-        st.markdown('<div class="hs-h1">此刻热议</div>', unsafe_allow_html=True)
+        st.markdown('<h1 class="hs-h1">此刻热议</h1>', unsafe_allow_html=True)
         st.markdown(f'<div class="hs-tagline">聚合 {n_sources} 个公开信息源，覆盖国内、国际与科技热点。</div>',
                     unsafe_allow_html=True)
     with head_r:
@@ -561,14 +561,14 @@ def _auto_pick_proxy(env_proxy: str):
 def render_counter():
     components.html(
         """
-        <style>body{background:transparent;margin:0;}</style>
-        <div style="color: #6b7285; font-family: ui-monospace, Consolas, monospace; font-size: 11.5px;">
+        <style>:root{--counter-ink:#505c54;--counter-value:#222825;--counter-line:#778275;--counter-font:system-ui,sans-serif;}body{background:transparent;margin:0;}</style>
+        <div style="color: var(--counter-ink); font-family: var(--counter-font); font-size: 11.5px;">
             <span id="busuanzi_container_site_pv" style="display:none">
-                总浏览量 <span id="busuanzi_value_site_pv" style="font-weight:bold; color:#f0c75e;"></span>
+                总浏览量 <span id="busuanzi_value_site_pv" style="font-weight:bold; color:var(--counter-value);"></span>
             </span>
-            <span style="margin: 0 10px; color: #323a4e;">|</span>
+            <span style="margin: 0 10px; color: var(--counter-line);">|</span>
             <span id="busuanzi_container_site_uv" style="display:none">
-                独立访客 <span id="busuanzi_value_site_uv" style="font-weight:bold; color:#f0c75e;"></span>
+                独立访客 <span id="busuanzi_value_site_uv" style="font-weight:bold; color:var(--counter-value);"></span>
             </span>
         </div>
         <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
@@ -579,7 +579,7 @@ def render_counter():
 
 def render_footer():
     st.markdown(
-        '<div class="hs-footer">数据来自各平台公开榜单，仅供个人学习与信息浏览 · '
+        '<div class="hs-footer">数据来自各平台公开榜单，仅供个人学习与信息浏览。<br>'
         'HOTRADAR by <a href="mailto:a18577y@gmail.com">Unlimited Box</a></div>',
         unsafe_allow_html=True,
     )

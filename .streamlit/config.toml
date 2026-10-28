@@ -1,10 +1,8 @@
-# Streamlit Cloud 会读取仓库内的 .streamlit/config.toml。
-# 主题主色与 PULSE GLASS（styles.py）保持一致：系统红（热搜语义色），
-# 组件级颜色（滑块/焦点环/勾选框）由此文件统一；磨砂玻璃效果在 styles.py 的 CSS 层。
+# Native controls share the news-index palette in theme.css.
 [theme]
-base = "dark"
+base = "light"
 primaryColor = "#ff453a"
-backgroundColor = "#0b0b0e"
-secondaryBackgroundColor = "#1c1c22"
-textColor = "#f5f5f7"
+backgroundColor = "#f4f3ef"
+secondaryBackgroundColor = "#fbfaf7"
+textColor = "#222825"
 font = "sans serif"

@@ -7,3 +7,6 @@ __pycache__/
 Thumbs.db
 hot.db
 *.db
+
+# Local Hallmark review artifacts
+.hallmark/
